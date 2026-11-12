@@ -86,6 +86,14 @@ header p{margin:2px 0 0;color:var(--muted);font-size:14px;max-width:65ch}
 .finder li .fbar i{display:block;height:100%;background:var(--accent);border-radius:3px}
 .finder li p{font-size:14px;color:var(--ink);margin:0 0 6px}
 .finder li button,.finder #fClear{font:500 13px var(--f-body);padding:7px 11px;border:1px solid var(--accent);background:#fff;color:var(--accent);border-radius:999px;cursor:pointer}
+.finder details{border-top:1px solid var(--line);margin-top:8px;padding-top:8px}
+.finder summary{font:600 13px var(--f-body);color:var(--accent);cursor:pointer}
+.finder details p{font-size:14px;margin:6px 0}
+.finder details ul{margin:6px 0;padding-left:18px;display:grid;gap:6px;font-size:14px}
+.finder details li{border:0;padding:0;border-radius:0}
+.finder details li strong{display:block}
+.finder details em{color:var(--muted);font-style:normal;display:block}
+.finder .exrule{font-size:13px;color:var(--muted);margin:10px 0}
 .finder .q{margin:0 0 10px}
 .finder .q>span{display:block;font-size:14px;font-weight:500;margin-bottom:5px}
 .finder .flag{background:var(--pain-soft);border:1px solid #f1c9cb;border-radius:8px;padding:8px 10px;font-size:14px;margin:4px 0 10px}
@@ -159,14 +167,15 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
       <p id="fIntro">Tap the model on the spot where you feel the pain. Turn it first if the spot is round the back.</p>
       <div id="fBody" hidden>
         <p><strong id="fRegion"></strong>. <span id="fNote"></span></p>
-        <h3>What may be causing it, best fit first</h3>
-        <ol id="fList"></ol>
-        <h3>Narrow it down <span>(optional, the list updates as you answer)</span></h3>
+        <h3>A few questions <span>(optional, the list below updates as you answer)</span></h3>
         <div id="fQs"></div>
         <div class="flag" id="fFlag"></div>
+        <h3>What may be causing it, best fit first</h3>
+        <ol id="fList"></ol>
+        <p class="exrule"><strong>Exercise rules:</strong> mild discomfort is fine, sharp pain is not. Stop any exercise that leaves the shoulder worse afterwards or the next day. Do a little, often. If it is no better after about six weeks, or it is getting worse, see a GP or physiotherapist.</p>
         <button type="button" id="fClear">Clear and tap again</button>
       </div>
-      <p class="warn"><strong>Get help fast:</strong> call 999 if shoulder or arm pain comes with chest tightness, breathlessness, sweating or feeling sick. Get seen the same day if the shoulder is hot, red and swollen with a fever, or looks out of shape after an injury. This guide suggests possibilities from where it hurts and your answers. It cannot examine you, so it is not a diagnosis.</p>
+      <p class="warn"><strong>Get help fast:</strong> call 999 if shoulder or arm pain comes with chest tightness, breathlessness, sweating or feeling sick. Get seen the same day if the shoulder is hot, red and swollen with a fever, or looks out of shape after an injury. This guide suggests possibilities from where it hurts and your answers. It cannot examine you, so it is not a diagnosis, and the exercises are general ones, not a personal treatment plan.</p>
     </section>
 
     <section class="explain" aria-live="polite">
@@ -766,6 +775,38 @@ const QS=[
  {k:'night',q:'Does it hurt at night or when lying on that side?',o:[['yes','Yes'],['no','No']]},
  {k:'str',q:'How is the strength?',o:[['weak','Weak: hard to lift or hold the arm up'],['sore','Sore but strong'],['stiff','Stiff: it will not go, even if someone lifts it']]},
  {k:'other',multi:true,q:'Anything else?',o:[['pins','Pins and needles or numbness'],['neckmove','Moving my neck changes the pain'],['click','Clicking, catching or it feels loose']]}];
+/* ---------- exercises ---------- */
+const EXS={
+ pend:['Pendulum swing','Lean forward with your good hand on a table and let the sore arm hang loose. Swing it gently forward and back, side to side, then in small circles, using your body to start the movement.','About 1 minute, 2 to 3 times a day'],
+ slide:['Table slide','Sit at a table with both hands on a cloth. Slide the hands forward by leaning your body in, as far as is comfortable, then slide back.','10 slow repeats, twice a day'],
+ stick:['Outward turn with a stick','Tuck both elbows into your sides, bent to a right angle, holding a stick or broom handle. Use the good arm to push the sore hand outward, keeping that elbow tucked in.','10 slow repeats, twice a day'],
+ wall:['Wall walk','Face a wall and walk the fingers of the sore arm up it as high as is comfortable. Hold for a few seconds, then walk back down.','5 to 10 repeats, twice a day'],
+ blade:['Shoulder blade squeeze','Sit or stand tall. Draw your shoulder blades gently back and down, as if tucking them into your back pockets, without shrugging.','Hold 5 to 10 seconds, 10 repeats, twice a day'],
+ isoOut:['Outward push against a wall','Stand side-on to a wall with the sore elbow bent to a right angle and tucked in, a rolled towel under the armpit. Press the back of the hand into the wall, gently, without the arm moving.','Hold 10 seconds, 5 to 10 repeats, once or twice a day'],
+ isoIn:['Inward push against a door frame','Stand at a door frame with the sore elbow bent to a right angle and tucked in. Press the palm into the frame, gently, without the arm moving.','Hold 10 seconds, 5 to 10 repeats, once or twice a day'],
+ band:['Outward turn with a band','Once the wall pushes are easy: hold a light exercise band in both hands, elbows tucked in. Turn the sore forearm outward against the band, then return slowly.','10 repeats, 2 to 3 sets, every other day'],
+ curl:['Gentle biceps hold','Sit with the sore elbow bent to a right angle, palm up, under a table edge. Press up lightly into the table without moving.','Hold 10 seconds, 5 repeats, once a day'],
+ neckT:['Chin tuck and neck turns','Sit tall. Draw your chin straight back to make a double chin and hold 5 seconds. Then turn your head slowly to each side as far as is comfortable.','10 of each, 2 to 3 times a day']};
+const PLAN={
+ supra:{lead:'Exercise will not knit a torn tendon back together, but strengthening the muscles around it often settles the pain and brings the movement back. If the tear followed an injury and the arm is weak, get it assessed before you start.',ex:['pend','slide','isoOut','blade','band'],avoid:'Heavy lifting away from the body and lifting above shoulder height until it settles.'},
+ imp:{lead:'The aim is to calm the sore tendon, then build up the muscles that hold the ball down so it stops catching.',ex:['blade','isoOut','isoIn','band'],avoid:'Repeated overhead work and sleeping on that side until it settles.'},
+ infra:{lead:'Start with gentle pushes that work the back tendons without moving the joint, then add movement.',ex:['isoOut','stick','blade','band'],avoid:'Heavy pulling and fast outward movements. If the arm is weak after an injury, get it assessed first.'},
+ sub:{lead:'Start with gentle inward pushes, and keep the shoulder moving forward comfortably.',ex:['isoIn','slide','blade'],avoid:'Forcing the arm outward or behind your back. If the arm is weak after an injury, get it assessed first.'},
+ bic:{lead:'Rest the tendon from heavy work, keep the shoulder moving and build up support around it.',ex:['pend','blade','isoOut','curl'],avoid:'Heavy lifting with the palm up and lifting with the arm straight out in front.'},
+ ac:{lead:'This joint settles best with relative rest from the movements that squash it, while keeping the rest of the shoulder working.',ex:['pend','blade','isoOut'],avoid:'Reaching across your chest, press-ups, bench or overhead pressing, and stretching the arm across the body.'},
+ frozen:{lead:'A frozen shoulder recovers slowly, often over many months. Gentle, regular movement keeps what you have. A warm pack for 15 minutes beforehand can help. Stretch into the tightness, never into sharp pain.',ex:['pend','slide','stick','wall'],avoid:'Forcing the movement or strenuous gym work, which can flare the pain.'},
+ oa:{lead:'A worn joint likes to be moved little and often. The aim is to keep the range you have and the muscles strong.',ex:['pend','slide','stick','blade'],avoid:'Heavy or jarring loads through the arm.'},
+ calc:{lead:'During a severe flare, rest the arm, use pain relief and see a GP if the pain is intense. Once it eases, the same exercises as for a pinched tendon apply.',ex:['pend','blade','isoOut'],avoid:'Pushing through severe pain.'},
+ lab:{lead:'See a physiotherapist before exercising. The wrong exercises can make a loose shoulder worse. These gentle ones keep the supporting muscles working in the meantime.',ex:['blade','isoOut','isoIn'],avoid:'The throwing position: arm out to the side and turned back.'},
+ neck:{lead:'If the pain starts in the neck, shoulder exercises will not reach it. Gentle neck movement and posture work are the place to start. See a GP if there is numbness or weakness in the arm or hand.',ex:['neckT','blade'],avoid:'Long spells with the head pushed forward, such as looking down at a phone.'}};
+function planEl(id,open){ const pl=PLAN[id], d=document.createElement('details'); d.open=open;
+  const sm=document.createElement('summary'); sm.textContent='Exercises that may help'; d.appendChild(sm);
+  const lead=document.createElement('p'); lead.textContent=pl.lead; d.appendChild(lead);
+  const ul=document.createElement('ul'); pl.ex.forEach(k=>{ const e=EXS[k], li=document.createElement('li');
+    const b=document.createElement('strong'); b.textContent=e[0]; li.appendChild(b); li.appendChild(document.createTextNode(' '+e[1]+' '));
+    const ds=document.createElement('em'); ds.textContent=e[2]+'.'; li.appendChild(ds); ul.appendChild(li); }); d.appendChild(ul);
+  const av=document.createElement('p'); const s=document.createElement('strong'); s.textContent='Go easy on: '; av.appendChild(s); av.appendChild(document.createTextNode(pl.avoid)); d.appendChild(av);
+  return d; }
 const F={region:null,mv:new Set(),start:null,night:null,str:null,other:new Set()};
 function scores(){ const sc={}, b=BASE[F.region]; for(const k in COND) sc[k]=b[k]||0;
   const add=t=>{ for(const k in t) sc[k]+=t[k]*(b[k]?1:.6); };
@@ -784,9 +825,10 @@ function renderFinder(){
     const bar=document.createElement('div'); bar.className='fbar'; const fill=document.createElement('i'); fill.style.width=Math.round(r*100)+'%'; bar.appendChild(fill); li.appendChild(bar);
     const p=document.createElement('p'); p.textContent=c.d; li.appendChild(p);
     const b=document.createElement('button'); b.type='button'; b.textContent='Show on the model'; b.addEventListener('click',()=>showCond(a[0])); li.appendChild(b);
+    li.appendChild(planEl(a[0],i===0));
     ol.appendChild(li); });
   document.querySelectorAll('#fQs button').forEach(b=>{ const q=b.dataset.q, v=b.dataset.v; b.setAttribute('aria-pressed',String(F[q] instanceof Set?F[q].has(v):F[q]===v)); });
-  const fl=[]; if(F.start==='injury'&&F.str==='weak') fl.push('Sudden weakness after a fall or jolt can mean a freshly torn tendon. Get it checked within days, not weeks, because early treatment works better.');
+  const fl=[]; if(F.start==='injury'&&F.str==='weak') fl.push('Sudden weakness after a fall or jolt can mean a freshly torn tendon. Get it checked within days, not weeks, because early treatment works better. Do not start the exercises until it has been looked at.');
   if(F.other.has('pins')) fl.push('Pins and needles or numbness point towards the neck or a nerve. Mention it when you are seen.');
   $('#fFlag').textContent=fl.join(' ');
 }
