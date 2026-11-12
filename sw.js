@@ -1,6 +1,6 @@
 // Offline support: saves the app's files on the device.
 // Change the version number whenever the files change, so phones pick up the update.
-const CACHE = 'shoulder-v1';
+const CACHE = 'shoulder-v2';
 const FILES = ['./', 'index.html', 'three.min.js', 'manifest.json', 'icon-192.png', 'icon-512.png', 'apple-touch-icon.png'];
 
 self.addEventListener('install', e => {

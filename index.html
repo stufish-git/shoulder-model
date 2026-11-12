@@ -568,7 +568,7 @@ const TEAR_TXT=[
 
 /* ---------- state ---------- */
 const reduce=window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches;
-const S={showCond:null,showNote:'',tear:1,sel:0,sc:0,p:.55,dir:1,playing:!reduce,hold:0,slow:false,labels:true,sites:true,spin:false};
+const S={showCond:null,showNote:'',tear:1,sel:0,sc:0,p:.55,dir:1,playing:false,hold:0,slow:false,labels:true,sites:true,spin:false};
 const view={az:rad(-28),pol:rad(74),rad:50,gaz:rad(-28),gpol:rad(74),target:V(-2.2,-2.6,0),anim:false,zoom:1};
 
 /* ---------- pose ---------- */
@@ -797,7 +797,7 @@ QS.forEach(q=>{ const d=document.createElement('div'); d.className='q'; const s=
   $('#fQs').appendChild(d); });
 function clearFinder(){ F.region=null; F.mv.clear(); F.other.clear(); F.start=F.night=F.str=null; pin.visible=false; clearShow(); renderFinder(); }
 $('#fClear').addEventListener('click',()=>{ clearFinder(); sync(); });
-$('#reset').addEventListener('click',()=>{ clearFinder(); S.tear=1; S.sel=0; pick(0); sync(); });
+$('#reset').addEventListener('click',()=>{ clearFinder(); S.tear=1; S.sel=0; pick(0); S.p=.55; S.playing=false; sync(); });
 function showCond(id){ const c=COND[id].show; clearShow(); S.showCond=id; S.showNote=c.note||''; spotFn=c.spot||null;
   if(c.sel!=null) S.sel=c.sel; S.tear=c.tear; if(c.sc!=null) pick(c.sc); if(c.view) goView(c.view); sync();
   stage.scrollIntoView({block:'start',behavior:reduce?'auto':'smooth'}); }
