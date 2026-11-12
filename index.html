@@ -1,0 +1,844 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rotator Cuff Shoulder Model</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0d6b7a">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Shoulder">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@500;600&display=swap" rel="stylesheet">
+<style>
+/* Layout idea: an anatomy-atlas plate. The model sits on pale paper with leader-line labels in the
+   margins; the explanation sits directly under it, controls after. Two columns on wide screens. */
+:root{
+  color-scheme: light;
+  --paper:#eef3f5;
+  --plate:#fbfdfd;
+  --ink:#14303b;
+  --muted:#587180;
+  --line:#cbd8de;
+  --accent:#0d6b7a;
+  --accent-soft:#dcedf0;
+  --pain:#d81f2a;
+  --pain-soft:#fbe3e4;
+  --f-body:"IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-label:"IBM Plex Sans Condensed", "Arial Narrow", system-ui, sans-serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--paper);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.45;-webkit-text-size-adjust:100%}
+.app{max-width:1240px;margin:0 auto;padding:14px 16px 40px;display:grid;gap:14px}
+header h1{font-family:var(--f-label);font-weight:600;font-size:22px;letter-spacing:.01em;margin:0;text-wrap:balance}
+header p{margin:2px 0 0;color:var(--muted);font-size:14px;max-width:65ch}
+
+.stage{position:relative;height:min(60vh,560px);min-height:340px;border:1px solid var(--line);border-radius:10px;overflow:hidden;
+  background:radial-gradient(120% 90% at 50% 40%, #f4f8f9 0%, #e4ecef 55%, #cfdbe0 100%)}
+.stage canvas{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none;cursor:grab}
+.stage canvas:active{cursor:grabbing}
+#leaders{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+#leaders line{stroke:var(--ink);stroke-width:.8;opacity:.55}
+#leaders circle{fill:var(--ink);opacity:.7}
+#leaders .tear{stroke:var(--pain);fill:var(--pain);opacity:.9}
+#labels{position:absolute;inset:0;pointer-events:none}
+.lab{position:absolute;top:0;font-family:var(--f-label);font-weight:500;font-size:12px;line-height:1.15;max-width:clamp(78px,21vw,150px);
+  color:var(--ink);transition:opacity .2s;text-shadow:0 0 3px #fff,0 0 3px #fff,0 0 2px #fff}
+.lab.r{text-align:right}
+.lab.tear{color:var(--pain);font-weight:600}
+.lab.off{opacity:0}
+.views{position:absolute;left:8px;top:8px;display:flex;gap:4px;flex-wrap:wrap}
+.views button{font:500 12px var(--f-label);padding:5px 9px;border:1px solid var(--line);background:rgba(255,255,255,.9);color:var(--ink);border-radius:6px;cursor:pointer}
+.views button:hover{border-color:var(--accent)}
+.stagectl{position:absolute;left:8px;bottom:8px;display:flex;gap:6px}
+.stagectl button{height:38px;min-width:44px;padding:0 12px;border-radius:8px;border:1px solid var(--accent);background:var(--accent);color:#fff;font:600 13px var(--f-label);cursor:pointer}
+.stagectl #reset{background:rgba(255,255,255,.92);color:var(--ink);border-color:var(--line)}
+.hint{position:absolute;right:10px;bottom:8px;font:500 11px var(--f-label);color:var(--muted);background:rgba(255,255,255,.75);padding:2px 6px;border-radius:4px}
+#nogl[hidden]{display:none}
+#nogl{position:absolute;inset:0;display:grid;place-items:center;padding:24px;text-align:center;color:var(--muted)}
+
+.explain{background:#fff;border:1px solid var(--line);border-left:4px solid var(--accent);border-radius:8px;padding:12px 14px}
+.explain h2{font:600 16px var(--f-label);margin:0 0 4px}
+.explain p{margin:0 0 6px;max-width:65ch}
+.explain .tearline{color:var(--muted);font-size:14px}
+.meter{display:flex;align-items:center;gap:10px;margin-top:8px}
+.meter .cap{font:500 12px var(--f-label);color:var(--muted);white-space:nowrap}
+.meter .bar{flex:1;height:10px;border-radius:5px;background:var(--pain-soft);overflow:hidden;border:1px solid #f1c9cb}
+.meter .fill{height:100%;width:0;background:var(--pain);border-radius:5px}
+.meter .word{font:600 13px var(--f-label);min-width:66px;text-align:right;color:var(--pain);font-variant-numeric:tabular-nums}
+
+.finder{background:#fff;border:1px solid var(--line);border-left:4px solid var(--ink);border-radius:8px;padding:12px 14px}
+.finder h2{font:600 16px var(--f-label);margin:0 0 4px}
+.finder h3{font:600 12px var(--f-label);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:12px 0 6px}
+.finder h3 span{text-transform:none;letter-spacing:0;font-weight:500}
+.finder p{margin:0 0 6px;max-width:65ch}
+.finder ol{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.finder li{border:1px solid var(--line);border-radius:8px;padding:9px 11px}
+.finder li .rt{display:flex;justify-content:space-between;gap:10px;align-items:baseline}
+.finder li .nm{font-weight:600}
+.finder li .med{display:block;font-size:12px;color:var(--muted)}
+.finder li .fit{font:600 12px var(--f-label);color:var(--accent);white-space:nowrap}
+.finder li .fbar{height:6px;border-radius:3px;background:var(--accent-soft);margin:6px 0;overflow:hidden}
+.finder li .fbar i{display:block;height:100%;background:var(--accent);border-radius:3px}
+.finder li p{font-size:14px;color:var(--ink);margin:0 0 6px}
+.finder li button,.finder #fClear{font:500 13px var(--f-body);padding:7px 11px;border:1px solid var(--accent);background:#fff;color:var(--accent);border-radius:999px;cursor:pointer}
+.finder .q{margin:0 0 10px}
+.finder .q>span{display:block;font-size:14px;font-weight:500;margin-bottom:5px}
+.finder .flag{background:var(--pain-soft);border:1px solid #f1c9cb;border-radius:8px;padding:8px 10px;font-size:14px;margin:4px 0 10px}
+.finder .flag:empty{display:none}
+.finder .warn{font-size:13px;color:var(--muted);margin:10px 0 0;border-top:1px solid var(--line);padding-top:8px}
+.finder .warn strong{color:var(--pain)}
+.panel{display:grid;gap:14px}
+.group{background:#fff;border:1px solid var(--line);border-radius:8px;padding:12px 14px}
+.group h3{font:600 12px var(--f-label);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:0 0 8px}
+.group h4{font:500 12px var(--f-label);color:var(--muted);margin:10px 0 6px}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chips button{font:500 13px var(--f-body);padding:8px 11px;border:1px solid var(--line);background:#fff;color:var(--ink);border-radius:999px;cursor:pointer;text-align:left}
+.chips button:hover{border-color:var(--accent)}
+.chips button[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:#fff}
+.seg{display:grid;grid-template-columns:repeat(3,1fr);border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.seg button{font:500 13px var(--f-body);padding:9px 4px;border:0;border-right:1px solid var(--line);background:#fff;color:var(--ink);cursor:pointer}
+.seg button:last-child{border-right:0}
+.seg button[aria-pressed="true"]{background:var(--pain);color:#fff}
+.seg button[data-v="0"][aria-pressed="true"]{background:var(--accent)}
+.note{color:var(--muted);font-size:13px;margin:8px 0 0}
+.player{display:flex;align-items:center;gap:10px}
+.player button{flex:none;width:44px;height:38px;border-radius:8px;border:1px solid var(--accent);background:var(--accent);color:#fff;font-size:15px;cursor:pointer}
+.player input[type=range]{flex:1;accent-color:var(--accent);min-width:0}
+.readout{font:500 13px var(--f-label);color:var(--ink);margin-top:6px;font-variant-numeric:tabular-nums;min-height:1.3em}
+.checks{display:grid;gap:8px}
+.checks label{display:flex;gap:8px;align-items:flex-start;font-size:14px;cursor:pointer}
+.checks input{accent-color:var(--accent);margin-top:3px;flex:none}
+dl.names{margin:0;display:grid;grid-template-columns:auto 1fr;gap:4px 12px;font-size:14px}
+dl.names dt{font-weight:600}
+dl.names dd{margin:0;color:var(--muted)}
+button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.swatch{display:inline-block;width:10px;height:10px;border-radius:2px;background:var(--pain);margin-right:5px;vertical-align:baseline}
+
+@media (min-width:920px){
+  .app{grid-template-columns:minmax(0,1.35fr) minmax(320px,1fr);align-items:start;column-gap:18px}
+  header{grid-column:1/-1}
+  .left{position:sticky;top:12px;display:grid;gap:14px}
+  .stage{height:min(66vh,640px)}
+}
+@media (max-width:919px){ .left{display:grid;gap:14px} }
+</style>
+</head>
+<body>
+<main class="app">
+  <header>
+    <h1>Rotator cuff tears in the left shoulder</h1>
+    <p>Turn the model with your finger. Tap where it hurts to see what may be causing it, or choose a tear and a movement to see where it hurts and why.</p>
+  </header>
+
+  <div class="left">
+    <section class="stage" id="stage" aria-label="3D model of the shoulder">
+      <canvas id="gl"></canvas>
+      <svg id="leaders" aria-hidden="true"></svg>
+      <div id="labels" aria-hidden="true"></div>
+      <div class="views">
+        <button type="button" data-view="front">Front</button>
+        <button type="button" data-view="back">Back</button>
+        <button type="button" data-view="side">Side</button>
+        <button type="button" data-view="top">Top</button>
+      </div>
+      <div class="stagectl">
+        <button type="button" id="play2" aria-label="Pause">❚❚</button>
+        <button type="button" id="reset">Reset</button>
+      </div>
+      <div class="hint">Tap where it hurts · drag to turn</div>
+      <div id="nogl" hidden>This device could not start the 3D view. Try another browser or device.</div>
+    </section>
+
+    <section class="finder" id="finder" aria-live="polite">
+      <h2>Where does it hurt?</h2>
+      <p id="fIntro">Tap the model on the spot where you feel the pain. Turn it first if the spot is round the back.</p>
+      <div id="fBody" hidden>
+        <p><strong id="fRegion"></strong>. <span id="fNote"></span></p>
+        <h3>What may be causing it, best fit first</h3>
+        <ol id="fList"></ol>
+        <h3>Narrow it down <span>(optional, the list updates as you answer)</span></h3>
+        <div id="fQs"></div>
+        <div class="flag" id="fFlag"></div>
+        <button type="button" id="fClear">Clear and tap again</button>
+      </div>
+      <p class="warn"><strong>Get help fast:</strong> call 999 if shoulder or arm pain comes with chest tightness, breathlessness, sweating or feeling sick. Get seen the same day if the shoulder is hot, red and swollen with a fever, or looks out of shape after an injury. This guide suggests possibilities from where it hurts and your answers. It cannot examine you, so it is not a diagnosis.</p>
+    </section>
+
+    <section class="explain" aria-live="polite">
+      <h2 id="exTitle"></h2>
+      <p id="exWhy"></p>
+      <p id="exTendon"></p>
+      <p class="tearline" id="exTear"></p>
+      <div class="meter">
+        <span class="cap">Pain in this position</span>
+        <div class="bar"><div class="fill" id="painFill"></div></div>
+        <span class="word" id="painWord">None</span>
+      </div>
+    </section>
+  </div>
+
+  <div class="panel">
+    <section class="group">
+      <h3>Type of tear</h3>
+      <div class="seg" id="tearSeg">
+        <button type="button" data-v="0">Healthy</button>
+        <button type="button" data-v="1">Partial tear</button>
+        <button type="button" data-v="2">Full tear</button>
+      </div>
+      <h4>Which tendon</h4>
+      <div class="chips" id="tendonChips"></div>
+      <p class="note"><span class="swatch"></span>Red marks where tears happen: the last centimetre or so of each tendon, where it joins the arm bone.</p>
+    </section>
+
+    <section class="group">
+      <h3>Movement</h3>
+      <h4>Everyday movements</h4>
+      <div class="chips" id="moveA"></div>
+      <h4>Sudden or fast movements</h4>
+      <div class="chips" id="moveB"></div>
+      <h4>Step through it</h4>
+      <div class="player">
+        <button type="button" id="play" aria-label="Pause">❚❚</button>
+        <input type="range" id="scrub" min="0" max="1000" value="0" aria-label="Position in the movement">
+      </div>
+      <div class="readout" id="readout"></div>
+      <div class="checks" style="margin-top:8px">
+        <label><input type="checkbox" id="slow"> Slow motion</label>
+      </div>
+    </section>
+
+    <section class="group">
+      <h3>View options</h3>
+      <div class="checks">
+        <label><input type="checkbox" id="optLabels" checked> Show labels</label>
+        <label><input type="checkbox" id="optSites" checked> Show in red every place a tear can happen</label>
+        <label><input type="checkbox" id="optRoof"> Make the bony roof and collarbone see-through</label>
+        <label><input type="checkbox" id="optBursa" checked> Show the cushion sac (bursa)</label>
+        <label><input type="checkbox" id="optSpin"> Spin the model slowly</label>
+      </div>
+    </section>
+
+    <section class="group">
+      <h3>Medical names</h3>
+      <dl class="names">
+        <dt>Top tendon</dt><dd>Supraspinatus. Lifts the arm. Torn most often.</dd>
+        <dt>Back tendon</dt><dd>Infraspinatus. Turns the arm outward.</dd>
+        <dt>Small back tendon</dt><dd>Teres minor. Helps turn the arm outward.</dd>
+        <dt>Front tendon</dt><dd>Subscapularis. Turns the arm inward.</dd>
+        <dt>Bony roof</dt><dd>Acromion, part of the shoulder blade.</dd>
+        <dt>Collarbone joint</dt><dd>Acromioclavicular (AC) joint, where the collarbone meets the bony roof.</dd>
+        <dt>Cushion sac</dt><dd>Subacromial bursa. Lets the tendon slide under the roof.</dd>
+      </dl>
+      <p class="note">A simplified teaching model, drawn by hand rather than taken from a scan. Pain differs between people: some full tears cause more weakness than pain. It is not a tool for diagnosis.</p>
+    </section>
+  </div>
+</main>
+
+<script src="three.min.js"></script>
+<script>
+(function(){
+'use strict';
+const $=s=>document.querySelector(s);
+if(!window.THREE){ $('#nogl').hidden=false; return; }
+const T=THREE, canvas=$('#gl'), stage=$('#stage');
+let renderer;
+try{ renderer=new T.WebGLRenderer({canvas,antialias:true,alpha:true}); }
+catch(e){ $('#nogl').hidden=false; return; }
+renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,2));
+renderer.outputEncoding=T.sRGBEncoding;
+
+const V=(x,y,z)=>new T.Vector3(x,y,z);
+const rad=d=>d*Math.PI/180;
+const clamp=(x,a,b)=>Math.min(b,Math.max(a,x));
+const sst=(a,b,x)=>{const t=clamp((x-a)/(b-a),0,1);return t*t*(3-2*t);};
+const ease=x=>x*x*(3-2*x);
+const lerp=(a,b,t)=>a+(b-a)*t;
+
+/* ---------- scene ---------- */
+const scene=new T.Scene();
+const camera=new T.PerspectiveCamera(30,1,1,400);
+scene.add(camera);
+scene.add(new T.HemisphereLight(0xffffff,0x6f7d86,0.5));
+const key=new T.DirectionalLight(0xffffff,0.62); key.position.set(-6,9,14); camera.add(key);
+const rim=new T.DirectionalLight(0xdfeaf2,0.18); rim.position.set(10,-4,6); camera.add(rim);
+
+/* ---------- materials ---------- */
+function fibreTex(){
+  const c=document.createElement('canvas'); c.width=256; c.height=4;
+  const g=c.getContext('2d'); let v=220;
+  for(let x=0;x<256;x++){ v=clamp(v+(Math.random()-.5)*70,150,255); if(x>240) v=lerp(v,220,(x-240)/16);
+    g.fillStyle='rgb('+(v|0)+','+(v|0)+','+(v|0)+')'; g.fillRect(x,0,1,4); }
+  const t=new T.CanvasTexture(c); t.wrapS=t.wrapT=T.RepeatWrapping; t.encoding=T.sRGBEncoding; return t;
+}
+const boneMat=new T.MeshStandardMaterial({color:0xd6c49c,roughness:.8});
+const roofMat=new T.MeshStandardMaterial({color:0xd6c49c,roughness:.8,transparent:true,opacity:1});
+const roofSweepMat=new T.MeshStandardMaterial({color:0xd6c49c,roughness:.8,transparent:true,opacity:1,side:T.DoubleSide});
+const boneSweepMat=new T.MeshStandardMaterial({color:0xd6c49c,roughness:.8,side:T.DoubleSide});
+const cartMat=new T.MeshStandardMaterial({color:0xa9c9d6,roughness:.35});
+const ligMat=new T.MeshStandardMaterial({color:0xd9d3bb,roughness:.6,side:T.DoubleSide,transparent:true,opacity:1});
+const muscleMat=new T.MeshStandardMaterial({vertexColors:true,map:fibreTex(),roughness:.62,side:T.DoubleSide});
+const bursaMat=new T.MeshStandardMaterial({color:0x79b4dc,roughness:.25,transparent:true,opacity:.62,depthWrite:false});
+
+/* ---------- geometry helpers ---------- */
+function blob(rx,ry,rz,mat,pos,amp,parent,shape){
+  const g=new T.SphereGeometry(1,44,30), p=g.attributes.position, n=g.attributes.normal;
+  for(let i=0;i<p.count;i++){
+    let x=p.getX(i),y=p.getY(i),z=p.getZ(i);
+    let sx=rx,sz=rz; if(shape){ const k=shape(y); sx*=k; sz*=k; }
+    let nx=x/sx,ny=y/ry,nz=z/sz; const l=Math.hypot(nx,ny,nz)||1; nx/=l;ny/=l;nz/=l;
+    const px=x*sx,py=y*ry,pz=z*sz;
+    const d=(amp||0)*(Math.sin(px*2.1+1.3)*Math.sin(py*2.4+.7)+Math.sin(pz*1.9+2.1)*Math.sin((px+py)*1.5));
+    p.setXYZ(i,px+nx*d,py+ny*d,pz+nz*d); n.setXYZ(i,nx,ny,nz);
+  }
+  const m=new T.Mesh(g,mat); m.position.copy(pos); parent.add(m); return m;
+}
+function mkSweep(nSeg,nRad,mat,parent){
+  const nv=(nSeg+1)*(nRad+1)+2;
+  const pos=new Float32Array(nv*3), nor=new Float32Array(nv*3), col=new Float32Array(nv*3).fill(1), uv=new Float32Array(nv*2);
+  const idx=[], R=nRad+1;
+  for(let i=0;i<nSeg;i++)for(let j=0;j<nRad;j++){const a=i*R+j,b=a+1,c=a+R,d=c+1; idx.push(a,c,b,b,c,d);}
+  const c0=(nSeg+1)*R,c1=c0+1;
+  for(let j=0;j<nRad;j++){ idx.push(c0,j,j+1); idx.push(c1,nSeg*R+j+1,nSeg*R+j); }
+  const geo=new T.BufferGeometry();
+  geo.setAttribute('position',new T.BufferAttribute(pos,3));
+  geo.setAttribute('normal',new T.BufferAttribute(nor,3));
+  geo.setAttribute('color',new T.BufferAttribute(col,3));
+  geo.setAttribute('uv',new T.BufferAttribute(uv,2));
+  geo.setIndex(idx);
+  const mesh=new T.Mesh(geo,mat); mesh.frustumCulled=false; parent.add(mesh);
+  const C=[]; for(let i=0;i<=nSeg;i++) C.push(new T.Vector3());
+  return {nSeg,nRad,pos,nor,col,uv,geo,mesh,C,L:1};
+}
+const _t=new T.Vector3(),_n=new T.Vector3(),_w=new T.Vector3(),_r=new T.Vector3(),_c=[1,1,1],_pr=[0,0];
+const Aarr=new Float32Array(200),Barr=new Float32Array(200),Tarr=new Float32Array(200);
+function updSweep(sw,ctrl,o){
+  const {nSeg,nRad,pos,nor,col,uv,C}=sw, R=nRad+1;
+  const curve=new T.CatmullRomCurve3(ctrl,false,'centripetal'); curve.arcLengthDivisions=64;
+  const L=curve.getLength(); sw.L=L; const k=o.k||1, rep=o.rep||1;
+  for(let i=0;i<=nSeg;i++){
+    const t=1-Math.pow(1-i/nSeg,k); Tarr[i]=t; curve.getPointAt(t,C[i]);
+    const d=(1-t)*L; o.prof(t,d,_pr); Aarr[i]=_pr[0]; Barr[i]=_pr[1];
+    if(o.wrap){ _r.subVectors(C[i],o.wrap.c); const dist=_r.length(), Rw=o.wrap.R+o.wrap.b*Math.min(1,d/0.5);
+      if(dist<Rw) C[i].copy(o.wrap.c).addScaledVector(_r,Rw/(dist||1)); }
+  }
+  for(let i=0;i<=nSeg;i++){
+    const t=Tarr[i], d=(1-t)*L, p=C[i];
+    _t.subVectors(C[Math.min(nSeg,i+1)],C[Math.max(0,i-1)]).normalize();
+    o.up(t,_n);
+    if(o.wrap){ _r.subVectors(p,o.wrap.c); const dist=_r.length(); const w=sst(5.0,3.3,dist); _n.multiplyScalar(1-w).addScaledVector(_r,w/(dist||1)); }
+    _n.addScaledVector(_t,-_n.dot(_t));
+    if(_n.lengthSq()<1e-6){ _n.set(.3,.9,.2).addScaledVector(_t,-_n.dot(_t)); }
+    _n.normalize(); _w.crossVectors(_t,_n).normalize();
+    const a=Aarr[i], b=Barr[i], ea=Math.max(a,1e-3), eb=Math.max(b,1e-3);
+    for(let j=0;j<=nRad;j++){
+      const ph=j/nRad*Math.PI*2, cs=Math.cos(ph), sn=Math.sin(ph), q=(i*R+j)*3;
+      pos[q]=p.x+_w.x*a*cs+_n.x*b*sn; pos[q+1]=p.y+_w.y*a*cs+_n.y*b*sn; pos[q+2]=p.z+_w.z*a*cs+_n.z*b*sn;
+      let nx=_w.x*eb*cs+_n.x*ea*sn, ny=_w.y*eb*cs+_n.y*ea*sn, nz=_w.z*eb*cs+_n.z*ea*sn; const l=Math.hypot(nx,ny,nz)||1;
+      nor[q]=nx/l; nor[q+1]=ny/l; nor[q+2]=nz/l;
+      if(o.color){ o.color(t,d,_c); col[q]=_c[0]; col[q+1]=_c[1]; col[q+2]=_c[2]; }
+      const u=(i*R+j)*2; uv[u]=j/nRad*rep; uv[u+1]=t;
+    }
+    if(i===0||i===nSeg){ const q=((nSeg+1)*R+(i?1:0))*3, s=i?1:-1;
+      pos[q]=p.x;pos[q+1]=p.y;pos[q+2]=p.z; nor[q]=_t.x*s;nor[q+1]=_t.y*s;nor[q+2]=_t.z*s;
+      if(o.color){ col[q]=_c[0];col[q+1]=_c[1];col[q+2]=_c[2]; } }
+  }
+  const g=sw.geo; g.attributes.position.needsUpdate=true; g.attributes.normal.needsUpdate=true;
+  g.attributes.color.needsUpdate=true; g.attributes.uv.needsUpdate=true; g.computeBoundingSphere();
+}
+const upY=(t,o)=>o.set(0,1,0);
+
+/* ---------- bones: shoulder blade group ("girdle") ---------- */
+const girdle=new T.Group(); scene.add(girdle);
+const blade=new T.Group(); blade.position.set(-3.3,0,-0.4); blade.rotation.y=rad(-25); girdle.add(blade);
+blade.updateMatrix();
+const Bp=(x,y,z)=>V(x,y,z).applyMatrix4(blade.matrix);          // blade-local -> girdle-local
+const POST=V(0,0,-1).applyEuler(blade.rotation), ANT=POST.clone().negate();
+{
+  const sh=new T.Shape();
+  sh.moveTo(0.3,2.3); sh.quadraticCurveTo(-3.5,3.2,-7.6,4.9); sh.quadraticCurveTo(-8.7,4.7,-8.5,3.4);
+  sh.quadraticCurveTo(-8.3,-4,-6.4,-11.2); sh.quadraticCurveTo(-5.9,-12.3,-5.1,-11.3);
+  sh.quadraticCurveTo(-1.6,-6,0.3,-2.2); sh.lineTo(0.3,2.3);
+  const g=new T.ExtrudeGeometry(sh,{depth:.3,bevelEnabled:true,bevelThickness:.14,bevelSize:.14,bevelSegments:3,curveSegments:28});
+  g.translate(0,0,-.15); const bm=new T.Mesh(g,boneMat); bm.userData.reg='F'; blade.add(bm);
+}
+blob(1.0,1.9,1.15,boneMat,V(-3.5,0,-.35),.04,girdle).userData.reg='G';                                    // neck of the blade
+const glenoid=blob(.3,1.8,1.3,cartMat,V(-2.72,0,0),0,girdle,y=>1-.28*Math.max(0,y));    // socket
+const acromion=blob(2.15,.36,1.65,roofMat,V(.75,3.85,-.45),.03,girdle);                 // bony roof
+const bursa=blob(1.95,.2,1.5,bursaMat,V(.85,3.2,-.15),0,girdle); bursa.renderOrder=3;
+glenoid.userData.reg='G'; acromion.userData.reg='B'; bursa.userData.reg='B';
+blob(.55,.42,.62,ligMat,V(-.8,4.22,.2),0,girdle).userData.reg='A';                        // collarbone (AC) joint
+
+function staticSweep(pts,prof,up,mat,nSeg,nRad){ const s=mkSweep(nSeg||28,nRad||14,mat,girdle); updSweep(s,pts,{prof,up:up||upY}); return s; }
+// thick outer edge of the blade
+staticSweep([Bp(.1,-2.0,0),Bp(-1.5,-5.6,0),Bp(-3.6,-9.2,0),Bp(-5.3,-11.4,0)],(t,d,o)=>{o[0]=lerp(.5,.3,t);o[1]=lerp(.45,.28,t);},(t,o)=>o.copy(POST),boneSweepMat).mesh.userData.reg='F';
+// ridge across the back of the blade (spine), which continues into the bony roof
+staticSweep([Bp(-7.9,1.3,-.25),Bp(-5.2,2.1,-.9),Bp(-2.7,2.9,-1.5),V(-2.5,3.55,-2.35),V(-.9,3.82,-1.85)],
+  (t,d,o)=>{const k=sst(.62,.98,t); o[0]=lerp(.32,1.35,k); o[1]=lerp(.85,.36,k)*(.45+.55*sst(0,.15,t));},
+  (t,o)=>{const k=sst(.6,.95,t); o.copy(POST).multiplyScalar(1-k).add(V(0,k,0));},boneSweepMat,34,14).mesh.userData.reg=h=>h.uv&&h.uv.y>.75?'B':'F';
+// hook of bone at the front (coracoid)
+staticSweep([V(-3.45,2.0,.05),V(-3.25,3.0,.9),V(-2.6,3.15,2.0),V(-1.55,2.65,2.75)],(t,d,o)=>{o[0]=lerp(.62,.4,t);o[1]=lerp(.55,.36,t);},upY,boneSweepMat,22,14).mesh.userData.reg='C';
+// band between the hook and the roof
+staticSweep([V(-1.75,2.9,2.55),V(-.35,3.45,1.95),V(1.15,3.66,1.0)],(t,d,o)=>{o[0]=.5;o[1]=.07;},upY,ligMat,14,10).mesh.userData.reg='C';
+
+// collarbone: inner end fixed at the breastbone, outer end follows the roof
+const clav=mkSweep(34,16,roofSweepMat,scene); clav.mesh.userData.reg=h=>h.uv&&h.uv.y>.62?'A':'F';
+const clavPts=[[-13.5,2.6,3.4,0],[-10.5,3.3,4.1,.15],[-6.5,4.0,3.2,.5],[-3.0,4.38,1.2,.85],[-.95,4.32,.25,1]].map(a=>({p:V(a[0],a[1],a[2]),w:a[3],o:V()}));
+const clavO={prof:(t,d,o)=>{ o[0]=lerp(.8,.62,sst(0,.3,t))+.4*sst(.6,1,t); o[1]=lerp(.8,.6,sst(0,.3,t))-.2*sst(.6,1,t); },up:upY};
+function updClav(g){ for(const c of clavPts){ const a=g*c.w, cs=Math.cos(a), sn=Math.sin(a); c.o.set(c.p.x*cs-c.p.y*sn,c.p.x*sn+c.p.y*cs,c.p.z); }
+  updSweep(clav,clavPts.map(c=>c.o),clavO); }
+
+/* ---------- arm bone ---------- */
+const hum=new T.Group(); scene.add(hum);
+blob(2.38,2.38,2.38,boneMat,V(0,0,0),0,hum);
+{ const g=new T.SphereGeometry(2.44,40,20,0,Math.PI*2,0,1.2); const m=new T.Mesh(g,cartMat);
+  m.quaternion.setFromUnitVectors(V(0,1,0),V(-.8,.52,-.22).normalize()); hum.add(m); }
+blob(1.25,1.75,1.55,boneMat,V(1.55,.35,-.2),.035,hum);     // big bump (greater tuberosity)
+blob(.9,1.1,.85,boneMat,V(.75,-.2,1.75),.03,hum);          // small bump (lesser tuberosity)
+blob(1.85,1.7,1.85,boneMat,V(.65,-.7,0),.03,hum);          // neck
+{ const pr=[[0,-13.2],[.95,-13.15],[1.15,-12.8],[1.12,-9],[1.18,-6],[1.42,-3.6],[1.72,-2.1],[1.95,-.7],[1.7,.6],[0,1.2]].map(a=>new T.Vector2(a[0],a[1]));
+  const m=new T.Mesh(new T.LatheGeometry(pr,36),boneMat); m.position.set(.9,0,0); hum.add(m); }
+
+function humReg(h){ const p=hum.worldToLocal(h.point.clone());
+  if(p.y<-2.2) return 'E'; if(p.y>1.5) return 'B'; if(p.z>1.1) return 'C'; if(p.z<-1.1) return 'D'; return p.x>.8?'E':'G'; }
+hum.children.forEach(c=>c.userData.reg=humReg);
+const capsule=new T.Mesh(new T.SphereGeometry(2.66,36,24),new T.MeshStandardMaterial({color:0xe04a4a,transparent:true,opacity:.42,depthWrite:false,roughness:.4}));
+capsule.visible=false; capsule.renderOrder=4; hum.add(capsule);
+
+/* ---------- muscles and tendons ---------- */
+const TEND=[
+  {name:'Top tendon',med:'supraspinatus'},{name:'Back tendon',med:'infraspinatus'},
+  {name:'Small back tendon',med:'teres minor'},{name:'Front tendon',med:'subscapularis'}];
+const G=p=>({f:'g',p}), H=p=>({f:'h',p});
+const MUS=[
+  {pts:[G(Bp(-7.0,3.4,-.6)),G(Bp(-4.5,3.4,-.8)),G(Bp(-1.8,3.3,-.7)),G(V(-2.4,3.15,-.9)),H(V(1.62,1.98,.1))],up:POST,aB:1.25,bB:.72,aT:.95,bT:.27,rep:5},
+  {pts:[G(Bp(-6.4,-2.2,-.7)),G(Bp(-4.0,-.9,-.95)),G(Bp(-1.4,.2,-.95)),G(V(-1.7,.8,-2.45)),H(V(1.85,1.3,-1.4))],up:POST,aB:2.5,bB:.72,aT:1.02,bT:.25,rep:9},
+  {pts:[G(Bp(-3.9,-6.5,-.5)),G(Bp(-2.4,-4.0,-.75)),G(V(-2.0,-1.5,-2.2)),H(V(1.65,-.3,-1.72))],up:POST,aB:.85,bB:.52,aT:.55,bT:.22,rep:4},
+  {pts:[G(Bp(-6.2,-2.5,.55)),G(Bp(-3.8,-1.3,.85)),G(Bp(-1.2,-.3,1.0)),G(V(-2.35,0,1.85)),H(V(.85,-.1,2.55))],up:ANT,aB:2.6,bB:.78,aT:1.2,bT:.28,rep:9}
+];
+const mCol={d:[.62,.25,.22],l:[.80,.40,.35],t:[.95,.92,.84]};
+const NS=76, NR=26;
+MUS.forEach((m,i)=>{
+  m.sw=mkSweep(NS,NR,muscleMat,scene); m.sw.mesh.userData.reg=h=>(h.uv&&h.uv.y>.55)?'BDDC'[i]:'F';
+  m.tearMat=new T.MeshStandardMaterial({color:0xe3141f,emissive:0xd00010,emissiveIntensity:.3,roughness:.5,side:T.DoubleSide,transparent:true,opacity:.5});
+  m.ov=mkSweep(NS,NR,m.tearMat,scene); m.ov.mesh.renderOrder=2;
+  m.mode=0; m.world=m.pts.map(()=>V());
+  m.wrap={c:hum.position,R:2.4,b:m.bT};
+  m.prof=(t,d,o)=>{
+    const belly=sst(0,.18,t)*(1-sst(.5,.86,t));
+    let a=lerp(m.aT,m.aB,1-sst(.45,.9,t))*(.7+.3*sst(0,.15,t));
+    let b=lerp(m.bT,m.bB,belly)*(.35+.65*sst(0,.1,t));
+    if(d<.25) b*=.45+.55*d/.25;
+    if(m.mode===1){ const z=sst(.3,.5,d)*(1-sst(1.35,1.55,d)); b*=1-.55*z; a*=1-.14*z*(1+.6*Math.sin(d*23)); }
+    else if(m.mode===2){ const g=sst(.44,.5,d)*(1-sst(1.66,1.72,d)); a*=1-g; b*=1-g;
+      const bl=d>1.7?1-sst(1.7,2.7,d):0; b*=1+.6*bl; a*=1-.18*bl; }
+    o[0]=a; o[1]=b;
+  };
+  m.ovProf=(t,d,o)=>{
+    m.prof(t,d,o); let k;
+    if(m.mode===2) k=(d>.04&&d<.47)||(d>1.69&&d<2.15)?1:0; else k=(d>.33&&d<1.5)?1:0;
+    o[0]=k*(o[0]*1.05+.02); o[1]=k*(o[1]*1.1+.025);
+  };
+  m.color=(t,d,o)=>{ const tf=1-sst(1.8,3.8,d), s=.5; for(let q=0;q<3;q++) o[q]=lerp(lerp(mCol.d[q],mCol.l[q],s),mCol.t[q],tf); };
+  m.upf=(t,o)=>o.copy(m.up);
+  m.o={prof:m.prof,up:m.upf,color:m.color,wrap:m.wrap,k:1.8,rep:m.rep};
+  m.oo={prof:m.ovProf,up:m.upf,wrap:m.wrap,k:1.8};
+});
+// biceps tendon (for orientation)
+const bic={pts:[G(V(-2.45,2.05,.05)),H(V(1.6,1.5,1.72)),H(V(2.0,-1.0,2.0)),H(V(1.8,-4,1.5)),H(V(1.6,-8,1.38)),H(V(1.5,-12.6,1.45))]};
+bic.sw=mkSweep(60,14,muscleMat,scene); bic.sw.mesh.userData.reg='C'; bic.world=bic.pts.map(()=>V());
+bic.o={prof:(t,d,o)=>{ const r=lerp(.24,.85,sst(.5,.8,t))*(1-.75*sst(.93,1,t)); o[0]=r; o[1]=r*.9; },
+  up:(t,o)=>o.set(0,0,1), color:(t,d,o)=>{ const tf=1-sst(.42,.62,t); for(let q=0;q<3;q++) o[q]=lerp(lerp(mCol.d[q],mCol.l[q],.5),mCol.t[q],tf); },
+  wrap:{c:hum.position,R:2.36,b:.2},k:1,rep:3};
+
+function resolve(m){ for(let i=0;i<m.pts.length;i++){ const q=m.pts[i]; m.world[i].copy(q.p).applyMatrix4(q.f==='g'?girdle.matrixWorld:hum.matrixWorld); } return m.world; }
+
+/* ---------- pain markers ---------- */
+function radialTex(ring){
+  const c=document.createElement('canvas'); c.width=c.height=128; const g=c.getContext('2d');
+  if(ring){ g.strokeStyle='rgba(225,25,35,1)'; g.lineWidth=7; g.beginPath(); g.arc(64,64,56,0,7); g.stroke(); }
+  else{ const gr=g.createRadialGradient(64,64,0,64,64,64);
+    gr.addColorStop(0,'rgba(255,238,200,.95)'); gr.addColorStop(.22,'rgba(255,70,40,.85)'); gr.addColorStop(.6,'rgba(230,20,30,.35)'); gr.addColorStop(1,'rgba(230,20,30,0)');
+    g.fillStyle=gr; g.fillRect(0,0,128,128); }
+  const t=new T.CanvasTexture(c); t.encoding=T.sRGBEncoding; return t;
+}
+const glow=new T.Sprite(new T.SpriteMaterial({map:radialTex(false),transparent:true,depthTest:false,depthWrite:false})); glow.renderOrder=20; scene.add(glow);
+const rings=[0,1].map(()=>{ const s=new T.Sprite(new T.SpriteMaterial({map:radialTex(true),transparent:true,depthTest:false,depthWrite:false})); s.renderOrder=21; scene.add(s); return s; });
+const painPos=V();
+function markTex(pin){ const c=document.createElement('canvas'); c.width=c.height=128; const g=c.getContext('2d');
+  if(pin){ g.fillStyle='#fff'; g.beginPath(); g.arc(64,64,44,0,7); g.fill(); g.strokeStyle='#14303b'; g.lineWidth=12; g.stroke(); g.fillStyle='#14303b'; g.beginPath(); g.arc(64,64,14,0,7); g.fill(); }
+  else{ g.strokeStyle='#0d6b7a'; g.lineWidth=10; g.beginPath(); g.arc(64,64,54,0,7); g.stroke(); }
+  const t=new T.CanvasTexture(c); t.encoding=T.sRGBEncoding; return t; }
+const pin=new T.Sprite(new T.SpriteMaterial({map:markTex(true),transparent:true,depthTest:false,depthWrite:false})); pin.renderOrder=30; pin.scale.setScalar(1.15); pin.visible=false; scene.add(pin);
+const spot=new T.Sprite(new T.SpriteMaterial({map:markTex(false),transparent:true,depthTest:false,depthWrite:false})); spot.renderOrder=29; spot.visible=false; scene.add(spot);
+let spotFn=null;
+
+/* ---------- movements ---------- */
+function shock(p,t0){ if(p<t0) return 0; const x=p-t0; if(x<.05) return ease(x/.05); return Math.exp(-(x-.05)*7)*Math.cos((x-.05)*34); }
+function env(p,t0){ if(p<t0) return 0; const x=p-t0; if(x<.05) return x/.05; return Math.exp(-(x-.05)*3.4); }
+const arc=(a,lo,hi,top)=>sst(lo-15,lo+12,a)*(1-sst(hi-16,top,a));
+const SC=[
+ {id:'side',g:0,name:'Lifting the arm out to the side',dur:5,
+  pose:p=>({plane:0,elev:120*ease(p),rot:25*ease(p)}),
+  mech:(p,i)=>{const a=120*ease(p),pin=arc(a,60,120,120),L=sst(10,70,a);return [Math.max(pin,.25*L),.45*L,.25*L,.35*L][i];},
+  pinch:p=>arc(120*ease(p),60,120,120),
+  read:p=>{const a=Math.round(120*ease(p));return 'Arm lifted '+a+'°'+(a>=60&&a<=118?' · tightest part, the painful arc':'');},
+  why:'As the arm lifts, the top of the arm bone swings up under the bony roof of the shoulder. Between about 60° and 120° the gap between them is at its tightest.',
+  t:['The top tendon and the cushion sac sit in that gap. A swollen or torn tendon gets squeezed there, which is the classic painful arc.',
+     'The back tendon holds the ball down in the socket while the arm lifts, so the torn part is pulled on all the way up.',
+     'The small back tendon helps steady the ball as the arm lifts, so the torn part takes some of the strain.',
+     'The front tendon steadies the ball from the front as the arm lifts, so the torn part is pulled on.']},
+ {id:'fwd',g:0,name:'Reaching forward and up',dur:5,
+  pose:p=>({plane:80,elev:140*ease(p),rot:-5}),
+  mech:(p,i)=>{const a=140*ease(p),pin=arc(a,70,135,140),L=sst(10,80,a);return [Math.max(pin,.25*L),.35*L,.2*L,.55*L][i];},
+  pinch:p=>arc(140*ease(p),70,135,140),
+  read:p=>{const a=Math.round(140*ease(p));return 'Arm raised '+a+'°'+(a>=70&&a<=132?' · tightest part':'');},
+  why:'Reaching forward and up, as for a high shelf, brings the top of the arm bone under the front edge of the bony roof and the band of tissue beside it.',
+  t:['The top tendon is pressed against that front edge, most between about 70° and 130°.',
+     'The back tendon works to keep the ball centred in the socket, so the torn part is pulled on.',
+     'The small back tendon helps keep the ball centred, so the torn part takes some strain.',
+     'The front tendon works hard here and passes close under the hook of bone at the front, so a tear hurts on reaching forward.']},
+ {id:'behind',g:0,name:'Reaching behind your back',dur:4.5,
+  pose:p=>({plane:-90,elev:42*ease(p),rot:-70*ease(p)}),
+  mech:(p,i)=>{const s=sst(.25,1,p);return [.8*s,.9*s,.6*s,.4*s][i];}, pinch:p=>0,
+  read:p=>p<.3?'Arm starting to move back':p<.75?'Arm turning in behind the back':'Fully behind the back · tendons at full stretch',
+  why:'Reaching behind your back turns the arm inward and pushes it backwards. This winds the tendons around the ball and stretches them.',
+  t:['The top tendon is stretched and twisted over the ball, which pulls on the torn part.',
+     'The back tendon is stretched to its limit, which pulls directly on the tear.',
+     'The small back tendon is stretched as the arm turns in, pulling on the tear.',
+     'The front tendon tightens to turn the arm inward, so it tugs on the torn part.']},
+ {id:'out',g:0,name:'Turning the arm outward',dur:4,
+  pose:p=>({plane:0,elev:6,rot:-25+90*ease(p)}),
+  mech:(p,i)=>{const s=sst(.15,1,p);return [.4*s,.9*s,.8*s,.6*sst(.6,1,p)][i];}, pinch:p=>0,
+  read:p=>'Forearm turned '+Math.round(Math.abs(-25+90*ease(p)))+'° '+((-25+90*ease(p))<0?'inward':'outward'),
+  why:'Turning the forearm outward with the elbow by your side, as when opening a door, is powered by the two back tendons. The front tendon is stretched at the end of the turn.',
+  t:['The top tendon helps a little, so the torn part is pulled on lightly.',
+     'The back tendon does most of this work, so every pull loads the torn part.',
+     'The small back tendon works hard here, so the torn part is pulled on.',
+     'The front tendon is stretched as the arm turns out, which pulls on the tear at the end of the movement.']},
+ {id:'in',g:0,name:'Turning the arm inward',dur:4,
+  pose:p=>({plane:0,elev:6,rot:35-105*ease(p)}),
+  mech:(p,i)=>{const s=sst(.15,1,p);return [.3*s,.45*sst(.6,1,p),.35*sst(.6,1,p),.9*s][i];}, pinch:p=>0,
+  read:p=>'Forearm turned '+Math.round(Math.abs(35-105*ease(p)))+'° '+((35-105*ease(p))<0?'inward':'outward'),
+  why:'Turning the forearm inward across the body, as when tucking in a shirt, is powered by the front tendon. The back tendons are stretched at the end of the turn.',
+  t:['The top tendon helps a little, so the torn part is pulled on lightly.',
+     'The back tendon is stretched at the end of the turn, which pulls on the tear.',
+     'The small back tendon is stretched at the end of the turn, which pulls on the tear.',
+     'The front tendon does most of this work, so every pull loads the torn part.']},
+ {id:'jolt',g:1,name:'Sudden tug or jolt',dur:3.2,
+  pose:p=>{const k=shock(p,.35);return {plane:75,elev:28+8*k,rot:-10,pull:.5*k};},
+  mech:(p,i)=>env(p,.35)*[1,.8,.55,.8][i], pinch:p=>0,
+  read:p=>p<.35?'Arm held steady':p<.47?'The tug · tendons snap tight':'Settling · pain fades slowly',
+  why:'A sudden tug, such as a dog pulling on its lead or catching something heavy, yanks the arm bone away from the socket. The muscles tighten by reflex in a split second to hold the joint together, so the tendons are stretched and pulled at the same moment.',
+  t:['All of that load lands on the fibres of the top tendon that are still attached, which gives a sharp, sudden pain.',
+     'All of that load lands on the fibres of the back tendon that are still attached, which gives a sharp, sudden pain.',
+     'The load lands on the fibres of the small back tendon that are still attached, which gives a sudden pain.',
+     'All of that load lands on the fibres of the front tendon that are still attached, which gives a sharp, sudden pain.']},
+ {id:'fast',g:1,name:'Fast throw or quick reach',dur:3.6,
+  pose:p=>{ if(p<.5){const e=ease(p/.5);return {plane:-15*e,elev:95*e,rot:85*e};}
+    if(p<.6){const e=ease((p-.5)/.1);return {plane:-15+85*e,elev:95-25*e,rot:85-120*e};}
+    const e=ease((p-.6)/.4);return {plane:70+15*e,elev:70-45*e,rot:-35+15*e}; },
+  mech:(p,i)=>{const cock=sst(.3,.5,p)*(p<.52?1:0), dec=p<.55?0:(p<.6?(p-.55)/.05:Math.exp(-(p-.6)*5));
+    return [Math.max(.5*cock,.8*dec),dec,.9*dec,Math.max(.7*cock,.3*dec)][i];},
+  pinch:p=>.6*sst(.3,.5,p)*(p<.52?1:0),
+  read:p=>p<.5?'Winding the arm back':p<.6?'Whipping forward':'Braking the arm · hardest pull on the tendons',
+  why:'A fast movement such as a throw or a quick grab winds the arm back, whips it forward, then the back of the shoulder has to brake the arm. That braking is the hardest pull the tendons take.',
+  t:['The top tendon is pinched when the arm is wound back, then pulled hard during braking.',
+     'The back tendon does the braking, so a tear here gives a sharp pain just after the fastest point.',
+     'The small back tendon helps with the braking, so a tear here hurts just after the fastest point.',
+     'The front tendon is stretched hard when the arm is wound back, then fires to whip it forward.']},
+ {id:'fall',g:1,name:'Fall or jar up through the arm',dur:3.2,
+  pose:p=>{const k=shock(p,.4);return {plane:80,elev:70,rot:-15,pull:-.3*k,lift:.26*k};},
+  mech:(p,i)=>env(p,.4)*[1,.5,.3,.5][i], pinch:p=>env(p,.4),
+  read:p=>p<.4?'Arm out in front':p<.52?'Impact · ball driven up into the roof':'Settling · pain fades slowly',
+  why:'Landing on an outstretched hand or elbow, or a jar up through the arm, drives the ball of the arm bone upward into the bony roof.',
+  t:['The top tendon and the cushion sac are crushed between the two bones.',
+     'The back tendon is jolted as the ball shifts, which pulls on the torn part.',
+     'The small back tendon is jolted as the ball shifts, which pulls on the torn part.',
+     'The front tendon is jolted as the ball shifts, which pulls on the torn part.']}
+];
+const TEAR_TXT=[
+ 'Healthy tendon shown. It glides freely and nothing hurts. The red shading marks where tears usually start, close to where each tendon joins the bone.',
+ 'Partial tear: the tendon is frayed and thinned but still attached. The damaged fibres are sore and swollen, so they hurt when they are squeezed or pulled.',
+ 'Full tear: the tendon has come away from the bone and pulled back. The torn edge is tugged with each movement, the arm is weaker, and the ball can ride up towards the bony roof.'];
+
+/* ---------- state ---------- */
+const reduce=window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches;
+const S={showCond:null,showNote:'',tear:1,sel:0,sc:0,p:.55,dir:1,playing:!reduce,hold:0,slow:false,labels:true,sites:true,spin:false};
+const view={az:rad(-28),pol:rad(74),rad:50,gaz:rad(-28),gpol:rad(74),target:V(-2.2,-2.6,0),anim:false,zoom:1};
+
+/* ---------- pose ---------- */
+const qE=new T.Quaternion(),qR=new T.Quaternion(),ax=V(),Yax=V(0,1,0),dir=V();
+let curElev=0,curPain=0,curPinch=0;
+function applyPose(time){
+  const sc=SC[S.sc], P=sc.pose(S.p);
+  ax.set(-Math.sin(rad(P.plane)),0,Math.cos(rad(P.plane)));
+  qE.setFromAxisAngle(ax,rad(P.elev)); qR.setFromAxisAngle(Yax,rad(P.rot));
+  hum.quaternion.copy(qE).multiply(qR);
+  dir.set(0,-1,0).applyQuaternion(hum.quaternion);
+  hum.position.set(0,0,0).addScaledVector(dir,P.pull||0); hum.position.y+=(P.lift||0);
+  if(S.tear===2&&S.sel===0) hum.position.y+=.2*sst(15,70,P.elev);          // ball rides up with a full top-tendon tear
+  const g=P.plane>-45?rad(clamp((P.elev-25)*.4,0,40)):0;
+  girdle.rotation.z=g; girdle.updateMatrixWorld(true); hum.updateMatrixWorld(true);
+  updClav(g);
+  MUS.forEach((m,i)=>{ m.mode=(i===S.sel)?S.tear:0; const w=resolve(m); updSweep(m.sw,w,m.o);
+    const actual=m.mode>0, show=actual||S.sites; m.ov.mesh.visible=show;
+    if(show){ updSweep(m.ov,w,m.oo); m.tearMat.opacity=actual?1:.62; m.tearMat.depthWrite=actual;
+      m.tearMat.emissiveIntensity=actual?.45+.35*Math.sin(time*5):.22; } });
+  updSweep(bic.sw,resolve(bic),bic.o);
+  curElev=P.elev;
+  const tf=[0,.8,1][S.tear];
+  curPain=clamp(sc.mech(S.p,S.sel)*tf,0,1);
+  curPinch=clamp(sc.pinch(S.p)*tf*(S.sel===0?1:.4),0,1);
+  bursaMat.color.setRGB(lerp(.47,.9,curPinch),lerp(.71,.12,curPinch),lerp(.86,.14,curPinch));
+  bursaMat.opacity=lerp(.62,.85,curPinch);
+  // pain marker at the tear site
+  const m=MUS[S.sel], sw=m.sw; let bi=sw.nSeg, target=S.tear===2?1.75:.9;
+  for(let i=sw.nSeg;i>=0;i--){ const d=(1-(1-Math.pow(1-i/sw.nSeg,1.8)))*sw.L; if(d>=target){bi=i;break;} }
+  painPos.copy(sw.C[bi]);
+  const I=curPain, pulse=1+.12*Math.sin(time*9);
+  glow.visible=I>.03; glow.position.copy(painPos); glow.scale.setScalar((1.4+3.4*I)*pulse); glow.material.opacity=clamp(.25+I,0,1);
+  if(spotFn){ const ph=(time*1.1)%1; spot.visible=true; spot.position.copy(spotFn()); spot.scale.setScalar(1.5+ph*1.8); spot.material.opacity=1-ph*.75; } else spot.visible=false;
+  capsule.visible=S.showCond==='frozen';
+  rings.forEach((r,k)=>{ const ph=((time*.9+k*.5)%1); r.visible=I>.25; r.position.copy(painPos); r.scale.setScalar(1+ph*(3+5*I)); r.material.opacity=(1-ph)*I*.8; });
+}
+
+/* ---------- labels ---------- */
+const labHost=$('#labels'), svg=$('#leaders'), NSV='http://www.w3.org/2000/svg';
+const gAnchor=p=>()=>p.clone().applyMatrix4(girdle.matrixWorld), hAnchor=p=>()=>p.clone().applyMatrix4(hum.matrixWorld);
+const mi=Math.round(.56*NS);
+const LABS=[
+ {t:'Collarbone',f:()=>clav.C[15].clone()},
+ {t:'Bony roof',f:gAnchor(V(1.7,4.15,-.3))},
+ {t:'Shoulder blade',f:gAnchor(Bp(-4.6,-6.2,0))},
+ {t:'Hook of bone',f:gAnchor(V(-1.6,2.75,2.9))},
+ {t:'Cushion sac',f:gAnchor(V(2.5,3.25,.3)),bursa:true},
+ {t:'Collarbone joint',f:gAnchor(V(-.8,4.5,.4))},
+ {t:'Ball of the joint',f:hAnchor(V(-.9,.6,2.0))},
+ {t:'Arm bone',f:hAnchor(V(.9,-8.5,1.1))},
+ {t:'Biceps tendon',f:()=>bic.sw.C[20].clone()},
+ {t:'Top tendon',f:()=>MUS[0].sw.C[mi].clone()},
+ {t:'Back tendon',f:()=>MUS[1].sw.C[mi].clone()},
+ {t:'Small back tendon',f:()=>MUS[2].sw.C[mi].clone()},
+ {t:'Front tendon',f:()=>MUS[3].sw.C[mi].clone()},
+ {t:'Tear',f:()=>painPos.clone(),tear:true}
+];
+LABS.forEach(l=>{ l.el=document.createElement('div'); l.el.className='lab off'+(l.tear?' tear':''); l.el.textContent=l.t; labHost.appendChild(l.el);
+  l.line=document.createElementNS(NSV,'line'); l.dot=document.createElementNS(NSV,'circle'); l.dot.setAttribute('r','2');
+  if(l.tear){l.line.setAttribute('class','tear');l.dot.setAttribute('class','tear');}
+  svg.appendChild(l.line); svg.appendChild(l.dot); l.vis=false; l.occ=false; l.w=80; l.h=14; l.pos=V(); });
+function measureLabels(){ LABS.forEach(l=>{ l.w=l.el.offsetWidth||80; l.h=l.el.offsetHeight||14; }); }
+const ray=new T.Raycaster(), occluders=[]; let frame=0;
+function collectOccluders(){ occluders.length=0; scene.traverse(o=>{ if(o.isMesh&&o!==bursa&&o!==capsule&&!MUS.some(m=>m.ov.mesh===o)){ if(roofMat.opacity<1&&(o.material===roofMat||o.material===roofSweepMat||o.material===ligMat)) return; occluders.push(o);} }); }
+const _v=V(),_d=V();
+function updLabels(W,Hh){
+  frame++;
+  const check=(frame%8===1);
+  const act=[];
+  for(const l of LABS){
+    let on=S.labels&&!(l.bursa&&!bursa.visible)&&!(l.tear&&S.tear===0);
+    if(on){ l.pos.copy(l.f()); _v.copy(l.pos).project(camera); l.sx=(_v.x*.5+.5)*W; l.sy=(-_v.y*.5+.5)*Hh;
+      if(_v.z>1||l.sx<-20||l.sx>W+20||l.sy<-20||l.sy>Hh+20) on=false; }
+    if(on&&check&&!l.tear){ _d.subVectors(l.pos,camera.position); const dist=_d.length(); ray.set(camera.position,_d.normalize()); ray.far=dist;
+      const h=ray.intersectObjects(occluders,false); l.occ=h.length>0&&h[0].distance<dist-1.0; }
+    on=on&&!l.occ; l.vis=on;
+    l.el.classList.toggle('off',!on); l.line.style.display=l.dot.style.display=on?'':'none';
+    if(on) act.push(l);
+  }
+  for(const side of [0,1]){
+    const arr=act.filter(l=>(l.sx>W/2?1:0)===side).sort((a,b)=>a.sy-b.sy);
+    let prev=36;
+    for(const l of arr){ l.ly=Math.max(l.sy-l.h/2,prev); prev=l.ly+l.h+5; }
+    let over=prev-5-(Hh-26); if(over>0){ let lim=Hh-26; for(let i=arr.length-1;i>=0;i--){ const l=arr[i]; if(l.ly+l.h>lim) l.ly=lim-l.h; lim=l.ly-5; } }
+    for(const l of arr){
+      const x=side?W-8-l.w:8; l.el.classList.toggle('r',!!side);
+      l.el.style.transform='translate('+x.toFixed(1)+'px,'+l.ly.toFixed(1)+'px)';
+      const lx=side?x-4:x+l.w+4, ly=l.ly+l.h/2;
+      l.line.setAttribute('x1',lx.toFixed(1)); l.line.setAttribute('y1',ly.toFixed(1)); l.line.setAttribute('x2',l.sx.toFixed(1)); l.line.setAttribute('y2',l.sy.toFixed(1));
+      l.dot.setAttribute('cx',l.sx.toFixed(1)); l.dot.setAttribute('cy',l.sy.toFixed(1));
+    }
+  }
+}
+
+/* ---------- camera ---------- */
+let W=1,Hh=1;
+function resize(){ const r=stage.getBoundingClientRect(); W=Math.max(1,r.width); Hh=Math.max(1,r.height);
+  renderer.setSize(W,Hh,false); camera.aspect=W/Hh; camera.updateProjectionMatrix();
+  view.rad=44*Math.max(1,.98/camera.aspect); svg.setAttribute('viewBox','0 0 '+W+' '+Hh); measureLabels(); }
+function placeCamera(){ const r=view.rad*view.zoom, sp=Math.sin(view.pol);
+  camera.position.set(view.target.x+r*sp*Math.sin(view.az),view.target.y+r*Math.cos(view.pol),view.target.z+r*sp*Math.cos(view.az));
+  camera.lookAt(view.target); camera.updateMatrixWorld(true); }
+const VIEWS={front:[0,80],back:[180,80],side:[90,80],top:[0,8]};
+function goView(n){ const v=VIEWS[n]; let ga=rad(v[0]); const two=Math.PI*2; view.az=((view.az%two)+two)%two; if(ga-view.az>Math.PI) ga-=two; if(view.az-ga>Math.PI) ga+=two;
+  view.gaz=ga; view.gpol=rad(v[1]); view.anim=true; S.spin=false; $('#optSpin').checked=false; }
+const ptrs=new Map(); let pinch0=0,zoom0=1;
+let tap=null;
+canvas.addEventListener('pointerdown',e=>{ canvas.setPointerCapture(e.pointerId); ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY}); view.anim=false;
+  tap=ptrs.size===1?{x:e.clientX,y:e.clientY,t:performance.now()}:null;
+  if(ptrs.size===2){ const a=[...ptrs.values()]; pinch0=Math.hypot(a[0].x-a[1].x,a[0].y-a[1].y); zoom0=view.zoom; } });
+canvas.addEventListener('pointermove',e=>{ const p=ptrs.get(e.pointerId); if(!p) return;
+  if(tap&&Math.hypot(e.clientX-tap.x,e.clientY-tap.y)>7) tap=null;
+  if(ptrs.size===1){ view.az-=(e.clientX-p.x)*.009; view.pol=clamp(view.pol-(e.clientY-p.y)*.009,.06,Math.PI-.06); }
+  p.x=e.clientX; p.y=e.clientY;
+  if(ptrs.size===2){ const a=[...ptrs.values()], d=Math.hypot(a[0].x-a[1].x,a[0].y-a[1].y); if(pinch0>0) view.zoom=clamp(zoom0*pinch0/d,.3,1.8); } });
+canvas.addEventListener('pointerup',e=>{ if(tap&&ptrs.size===1&&performance.now()-tap.t<600) tapAt(e.clientX,e.clientY); tap=null; ptrs.delete(e.pointerId); });
+canvas.addEventListener('pointercancel',e=>{ tap=null; ptrs.delete(e.pointerId); });
+canvas.addEventListener('wheel',e=>{ e.preventDefault(); view.zoom=clamp(view.zoom*Math.exp(e.deltaY*.0012),.3,1.8); },{passive:false});
+
+/* ---------- UI ---------- */
+function chips(host,items,get,set){ items.forEach(it=>{ const b=document.createElement('button'); b.type='button'; b.textContent=it.label; b.dataset.v=it.v;
+  b.addEventListener('click',()=>{ set(it.v); sync(); }); host.appendChild(b); });
+  return ()=>host.querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String(String(get())===b.dataset.v))); }
+const syncT=chips($('#tendonChips'),TEND.map((t,i)=>({label:t.name,v:i})),()=>S.sel,v=>{clearShow();S.sel=+v;});
+const pick=v=>{ S.sc=+v; S.p=0; S.dir=1; S.hold=0; S.playing=true; };
+const syncA=chips($('#moveA'),SC.map((s,i)=>({label:s.name,v:i,g:s.g})).filter(s=>s.g===0),()=>S.sc,v=>{clearShow();pick(v);});
+const syncB=chips($('#moveB'),SC.map((s,i)=>({label:s.name,v:i,g:s.g})).filter(s=>s.g===1),()=>S.sc,v=>{clearShow();pick(v);});
+$('#tearSeg').querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{ clearShow(); S.tear=+b.dataset.v; sync(); }));
+document.querySelectorAll('.views button').forEach(b=>b.addEventListener('click',()=>goView(b.dataset.view)));
+const playBtn=$('#play'), scrub=$('#scrub');
+const play2=$('#play2');
+const togglePlay=()=>{ S.playing=!S.playing; if(S.playing&&SC[S.sc].g===1&&S.p>=1){S.p=0;} sync(); };
+playBtn.addEventListener('click',togglePlay); play2.addEventListener('click',togglePlay);
+scrub.addEventListener('input',()=>{ S.p=scrub.value/1000; S.playing=false; sync(); });
+$('#slow').addEventListener('change',e=>S.slow=e.target.checked);
+$('#optLabels').addEventListener('change',e=>S.labels=e.target.checked);
+$('#optSites').addEventListener('change',e=>S.sites=e.target.checked);
+$('#optSpin').addEventListener('change',e=>{S.spin=e.target.checked; view.anim=false;});
+$('#optBursa').addEventListener('change',e=>bursa.visible=e.target.checked);
+$('#optRoof').addEventListener('change',e=>{ const o=e.target.checked?.22:1; [roofMat,roofSweepMat,ligMat].forEach(m=>{m.opacity=o;m.depthWrite=o===1;}); collectOccluders(); });
+function sync(){
+  syncT(); syncA(); syncB();
+  $('#tearSeg').querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String(+b.dataset.v===S.tear)));
+  [playBtn,play2].forEach(b=>{ b.textContent=S.playing?'❚❚':'▶'; b.setAttribute('aria-label',S.playing?'Pause the movement':'Play the movement'); });
+  const sc=SC[S.sc];
+  $('#exTitle').textContent=sc.name; $('#exWhy').textContent=sc.why;
+  const st=S.tear&&!S.showNote; $('#exTendon').textContent=st?sc.t[S.sel]:''; $('#exTendon').style.display=st?'':'none';
+  $('#exTear').textContent=S.showNote||TEAR_TXT[S.tear];
+}
+let lastWord='',lastRead='';
+function hud(){
+  scrub.value=Math.round(S.p*1000);
+  $('#painFill').style.width=(curPain*100).toFixed(0)+'%';
+  const w=curPain<.05?'None':curPain<.35?'Mild':curPain<.7?'Moderate':'Sharp';
+  if(w!==lastWord){ $('#painWord').textContent=w; lastWord=w; }
+  const r=SC[S.sc].read(S.p); if(r!==lastRead){ $('#readout').textContent=r; lastRead=r; }
+}
+
+/* ---------- pain finder ---------- */
+function clearShow(){ S.showCond=null; S.showNote=''; spotFn=null; }
+const REG={
+ A:['Top of the shoulder, at the end of the collarbone','Pain you can point to with one finger here usually comes from the small joint underneath.'],
+ B:['Point of the shoulder, under the bony roof','This is where the top tendon and the cushion sac sit.'],
+ C:['Front of the shoulder','The biceps tendon and the front tendon both run here.'],
+ D:['Back of the shoulder','The two back tendons attach here.'],
+ E:['Outer upper arm','Pain here is often sent down from the tendons under the bony roof, so the cause may sit higher up than the sore spot.'],
+ F:['Shoulder blade or towards the neck','Pain here often comes from the neck or the muscles around the blade, not the shoulder joint itself.'],
+ G:['Deep inside the joint','A deep ache you cannot put a finger on tends to come from the joint itself.']};
+const HEALTHY_NOTE='Shown on a healthy cuff. The pulsing ring marks the part involved.';
+const COND={
+ supra:{n:'Tear of the top tendon',m:'Rotator cuff tear, supraspinatus',d:'The tendon over the top of the ball is frayed or torn. Typical signs are pain lifting the arm out to the side, pain at night and weakness holding the arm up. The pain is often felt on the outer upper arm, below the tear itself.',show:{sel:0,tear:1,sc:0,view:'front'}},
+ imp:{n:'Pinched, irritated tendon and cushion sac',m:'Subacromial pain, also called impingement or bursitis',d:'The top tendon and the cushion sac are sore and swollen, so they catch under the bony roof as the arm lifts. This is the commonest cause of shoulder pain. The arm is sore but usually still strong.',show:{sel:0,tear:1,sc:0,view:'front',spot:gAnchor(V(1.6,3.2,.4)),note:'Shown as a sore, swollen top tendon and cushion sac being pinched under the bony roof. The tendon does not have to be torn for this to hurt.'}},
+ infra:{n:'Tear of the back tendons',m:'Rotator cuff tear, infraspinatus or teres minor',d:'Pain at the back of the shoulder that is worse when turning the arm outward, with weakness in that movement.',show:{sel:1,tear:1,sc:3,view:'back'}},
+ sub:{n:'Tear of the front tendon',m:'Rotator cuff tear, subscapularis',d:'Pain at the front that is worse turning the arm inward or reaching behind the back. It often follows the arm being forced outward or backwards.',show:{sel:3,tear:1,sc:4,view:'front'}},
+ bic:{n:'Irritated biceps tendon',m:'Long head of biceps tendinopathy',d:'The tendon running up the groove at the front of the arm bone is sore. Pain is at the front and worse when lifting or reaching forward. It often comes along with rotator cuff trouble.',show:{tear:0,sc:1,view:'front',spot:()=>bic.sw.C[13],note:HEALTHY_NOTE}},
+ ac:{n:'Worn or sprained collarbone joint',m:'Acromioclavicular (AC) joint',d:'Pain right on top of the shoulder that you can point to with one finger. It is worse reaching across the chest or lifting high overhead, and can follow a fall onto the point of the shoulder.',show:{tear:0,sc:0,view:'front',spot:gAnchor(V(-.8,4.25,.3)),note:HEALTHY_NOTE}},
+ frozen:{n:'Frozen shoulder',m:'Adhesive capsulitis',d:'The lining of the joint becomes inflamed and tight. The shoulder is stiff in every direction, even when someone else moves it, and often aches at night. Turning the arm outward is usually the first movement to go.',show:{tear:0,sc:3,view:'front',note:'Shown on a healthy cuff. The red shell is the joint lining, which is inflamed and tight in a frozen shoulder.'}},
+ oa:{n:'Wear of the main joint',m:'Glenohumeral osteoarthritis',d:'The smooth surfaces of the ball and socket have worn. This gives a deep ache with stiffness and sometimes grinding, and it comes on slowly.',show:{tear:0,sc:3,view:'front',spot:gAnchor(V(-2.45,0,.9)),note:HEALTHY_NOTE}},
+ calc:{n:'Chalky deposit in the tendon',m:'Calcific tendinopathy',d:'A small calcium deposit forms inside the top tendon. It can cause sudden, severe pain with no injury, and is often bad at night.',show:{sel:0,tear:0,sc:0,view:'front',spot:()=>painPos,note:HEALTHY_NOTE}},
+ lab:{n:'Loose joint or torn socket rim',m:'Instability or labral tear',d:'The rim of the socket or the supports of the joint are damaged, often after a fall, a dislocation or repeated throwing. It may click, catch or feel as if it slips.',show:{tear:0,sc:6,view:'front',spot:gAnchor(V(-2.5,1.2,1.0)),note:HEALTHY_NOTE}},
+ neck:{n:'Pain coming from the neck',m:'Referred pain or a trapped nerve',d:'Pain around the shoulder blade or running down the arm can start in the neck. Clues are pins and needles, pain below the elbow, or pain that changes when you move your neck.',show:{tear:0,view:'back',spot:gAnchor(Bp(-7.8,4.6,0)),note:'The neck is not part of this model. The ring marks the side nearest the neck, where this pain usually starts.'}}
+};
+const BASE={A:{ac:5,imp:2,supra:1.5,neck:1},B:{imp:4,supra:4,calc:2,ac:1.5,frozen:1},C:{bic:4,sub:3,imp:2,supra:1.5,lab:1.5,frozen:1.5,oa:1},
+ D:{infra:4,neck:2,oa:1.5,lab:1.5,imp:1.5,frozen:1},E:{supra:4,imp:4,frozen:2,calc:1.5,neck:1.5},F:{neck:5,infra:1,imp:.5,oa:.5},G:{frozen:3,oa:3,lab:2.5,supra:1,imp:1}};
+const ADJ={
+ mv:{side:{imp:2,supra:2,calc:1},fwd:{imp:1.5,bic:1.5,sub:1,supra:1},behind:{sub:1.5,frozen:1.5,infra:1,supra:1,bic:.5},out:{infra:2.5,frozen:1},in:{sub:2.5},across:{ac:3},all:{frozen:4,oa:2.5}},
+ start:{injury:{supra:2,infra:1.5,sub:1.5,lab:2,ac:1.5,frozen:-1,oa:-1},gradual:{imp:1.5,oa:1.5,frozen:1,bic:1,supra:1,neck:.5},sudden:{calc:3.5}},
+ night:{yes:{supra:1.5,frozen:1.5,imp:1,calc:1,ac:.5},no:{}},
+ str:{weak:{supra:3,infra:2,sub:2,neck:1,imp:-1},sore:{imp:2,bic:1,ac:1,calc:.5},stiff:{frozen:4,oa:2.5}},
+ other:{pins:{neck:5},neckmove:{neck:5},click:{lab:3,oa:1}}};
+const QS=[
+ {k:'mv',multi:true,q:'Which movements bring it on?',o:[['side','Lifting out to the side'],['fwd','Reaching forward or up'],['behind','Reaching behind my back'],['out','Turning the arm outward'],['in','Turning the arm inward'],['across','Reaching across my chest'],['all','Every direction, and it is stiff']]},
+ {k:'start',q:'How did it start?',o:[['injury','After a fall, jolt or heavy lift'],['gradual','Gradually'],['sudden','Suddenly, with no injury']]},
+ {k:'night',q:'Does it hurt at night or when lying on that side?',o:[['yes','Yes'],['no','No']]},
+ {k:'str',q:'How is the strength?',o:[['weak','Weak: hard to lift or hold the arm up'],['sore','Sore but strong'],['stiff','Stiff: it will not go, even if someone lifts it']]},
+ {k:'other',multi:true,q:'Anything else?',o:[['pins','Pins and needles or numbness'],['neckmove','Moving my neck changes the pain'],['click','Clicking, catching or it feels loose']]}];
+const F={region:null,mv:new Set(),start:null,night:null,str:null,other:new Set()};
+function scores(){ const sc={}, b=BASE[F.region]; for(const k in COND) sc[k]=b[k]||0;
+  const add=t=>{ for(const k in t) sc[k]+=t[k]*(b[k]?1:.6); };
+  F.mv.forEach(v=>add(ADJ.mv[v])); F.other.forEach(v=>add(ADJ.other[v]));
+  ['start','night','str'].forEach(q=>{ if(F[q]) add(ADJ[q][F[q]]); });
+  return Object.keys(sc).map(k=>[k,sc[k]]).filter(a=>a[1]>0.4).sort((a,b)=>b[1]-a[1]).slice(0,4); }
+function renderFinder(){
+  const on=!!F.region; $('#fBody').hidden=!on; $('#fIntro').hidden=on; if(!on) return;
+  $('#fRegion').textContent='You tapped: '+REG[F.region][0].toLowerCase(); $('#fNote').textContent=REG[F.region][1];
+  const list=scores(), top=list.length?list[0][1]:1, ol=$('#fList'); ol.textContent='';
+  list.forEach((a,i)=>{ const c=COND[a[0]], r=a[1]/top, li=document.createElement('li');
+    const rt=document.createElement('div'); rt.className='rt';
+    const nm=document.createElement('span'); nm.className='nm'; nm.textContent=c.n; const med=document.createElement('span'); med.className='med'; med.textContent=c.m; nm.appendChild(med);
+    const fit=document.createElement('span'); fit.className='fit'; fit.textContent=i===0?'Best fit':r>=.7?'Good fit':'Possible';
+    rt.appendChild(nm); rt.appendChild(fit); li.appendChild(rt);
+    const bar=document.createElement('div'); bar.className='fbar'; const fill=document.createElement('i'); fill.style.width=Math.round(r*100)+'%'; bar.appendChild(fill); li.appendChild(bar);
+    const p=document.createElement('p'); p.textContent=c.d; li.appendChild(p);
+    const b=document.createElement('button'); b.type='button'; b.textContent='Show on the model'; b.addEventListener('click',()=>showCond(a[0])); li.appendChild(b);
+    ol.appendChild(li); });
+  document.querySelectorAll('#fQs button').forEach(b=>{ const q=b.dataset.q, v=b.dataset.v; b.setAttribute('aria-pressed',String(F[q] instanceof Set?F[q].has(v):F[q]===v)); });
+  const fl=[]; if(F.start==='injury'&&F.str==='weak') fl.push('Sudden weakness after a fall or jolt can mean a freshly torn tendon. Get it checked within days, not weeks, because early treatment works better.');
+  if(F.other.has('pins')) fl.push('Pins and needles or numbness point towards the neck or a nerve. Mention it when you are seen.');
+  $('#fFlag').textContent=fl.join(' ');
+}
+QS.forEach(q=>{ const d=document.createElement('div'); d.className='q'; const s=document.createElement('span'); s.textContent=q.q+(q.multi?' Pick any that apply.':''); d.appendChild(s);
+  const ch=document.createElement('div'); ch.className='chips'; d.appendChild(ch);
+  q.o.forEach(o=>{ const b=document.createElement('button'); b.type='button'; b.textContent=o[1]; b.dataset.q=q.k; b.dataset.v=o[0];
+    b.addEventListener('click',()=>{ if(q.multi){ F[q.k].has(o[0])?F[q.k].delete(o[0]):F[q.k].add(o[0]); } else F[q.k]=F[q.k]===o[0]?null:o[0]; renderFinder(); }); ch.appendChild(b); });
+  $('#fQs').appendChild(d); });
+function clearFinder(){ F.region=null; F.mv.clear(); F.other.clear(); F.start=F.night=F.str=null; pin.visible=false; clearShow(); renderFinder(); }
+$('#fClear').addEventListener('click',()=>{ clearFinder(); sync(); });
+$('#reset').addEventListener('click',()=>{ clearFinder(); S.tear=1; S.sel=0; pick(0); sync(); });
+function showCond(id){ const c=COND[id].show; clearShow(); S.showCond=id; S.showNote=c.note||''; spotFn=c.spot||null;
+  if(c.sel!=null) S.sel=c.sel; S.tear=c.tear; if(c.sc!=null) pick(c.sc); if(c.view) goView(c.view); sync();
+  stage.scrollIntoView({block:'start',behavior:reduce?'auto':'smooth'}); }
+const tray=new T.Raycaster(), ndc=new T.Vector2();
+function tapAt(cx,cy){
+  const r=canvas.getBoundingClientRect(); ndc.set((cx-r.left)/r.width*2-1,-((cy-r.top)/r.height)*2+1); tray.setFromCamera(ndc,camera);
+  const list=[]; scene.traverse(o=>{ if(o.isMesh&&o.userData.reg&&o.visible&&!(roofMat.opacity<1&&(o.material===roofMat||o.material===roofSweepMat||o.material===ligMat))) list.push(o); });
+  const h=tray.intersectObjects(list,false)[0]; if(!h) return;
+  const rg=typeof h.object.userData.reg==='function'?h.object.userData.reg(h):h.object.userData.reg; if(!rg) return;
+  let par=scene; for(let o=h.object;o;o=o.parent){ if(o===hum||o===girdle){par=o;break;} }
+  par.add(pin); pin.position.copy(par.worldToLocal(h.point.clone())); pin.visible=true;
+  F.region=rg; renderFinder();
+}
+window.shoulder_tap=tapAt;
+
+/* ---------- loop ---------- */
+let last=performance.now(),time=0;
+function tick(now){
+  const dt=Math.min(.05,(now-last)/1000); last=now; time+=dt;
+  const sc=SC[S.sc];
+  if(S.playing){
+    if(S.hold>0) S.hold-=dt;
+    else{ const sp=dt/(sc.dur*(S.slow?3.5:1));
+      if(sc.g===0){ S.p+=S.dir*sp; if(S.p>=1){S.p=1;S.dir=-1;S.hold=.7;} else if(S.p<=0){S.p=0;S.dir=1;S.hold=.5;} }
+      else{ S.p+=sp; if(S.p>=1){ S.p=0; S.hold=.9; } } }
+  }
+  if(S.spin) view.az+=dt*.35;
+  if(view.anim){ view.az=lerp(view.az,view.gaz,.14); view.pol=lerp(view.pol,view.gpol,.14); if(Math.abs(view.az-view.gaz)+Math.abs(view.pol-view.gpol)<.002) view.anim=false; }
+  placeCamera(); applyPose(time); hud(); updLabels(W,Hh);
+  renderer.render(scene,camera);
+  requestAnimationFrame(tick);
+}
+if(window.ResizeObserver) new ResizeObserver(resize).observe(stage); else window.addEventListener('resize',resize);
+resize(); collectOccluders(); sync(); renderFinder();
+if(document.fonts&&document.fonts.ready) document.fonts.ready.then(measureLabels);
+window.shoulder={S,view,goView,sync};
+requestAnimationFrame(tick);
+})();
+</script>
+<script>
+if('serviceWorker' in navigator){ window.addEventListener('load',function(){ navigator.serviceWorker.register('sw.js').catch(function(){}); }); }
+</script>
+</body>
+</html>
