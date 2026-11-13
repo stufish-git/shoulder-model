@@ -831,7 +831,7 @@ canvas.addEventListener('wheel',e=>{ e.preventDefault(); view.zoom=clamp(view.zo
 function chips(host,items,get,set){ items.forEach(it=>{ const b=document.createElement('button'); b.type='button'; b.textContent=it.label; b.dataset.v=it.v;
   b.addEventListener('click',()=>{ set(it.v); sync(); }); host.appendChild(b); });
   return ()=>host.querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String(String(get())===b.dataset.v))); }
-const syncT=chips($('#tendonChips'),TEND.map((t,i)=>({label:t.name,v:i})),()=>S.tear?S.sel:-1,v=>{clearShow();if(S.layer<2)setLayer(2);S.sel=+v;if(!S.tear)S.tear=1;});
+const syncT=chips($('#tendonChips'),TEND.map((t,i)=>({label:t.name,v:i})),()=>S.tear?S.sel:-1,v=>{clearShow();if(S.layer<2)setLayer(2);S.sel=+v;if(!S.tear)S.tear=1; if(window.innerWidth<920) $('#layerBar').scrollIntoView({block:'start',behavior:reduce?'auto':'smooth'});});
 const pick=v=>{ if(S.layer<2) setLayer(2); S.sc=+v; S.p=0; S.dir=1; S.hold=0; S.playing=true; };
 const syncA=chips($('#moveA'),SC.map((s,i)=>({label:s.name,v:i,g:s.g})).filter(s=>s.g===0),()=>S.sc,v=>{clearShow();pick(v);});
 const syncB=chips($('#moveB'),SC.map((s,i)=>({label:s.name,v:i,g:s.g})).filter(s=>s.g===1),()=>S.sc,v=>{clearShow();pick(v);});
