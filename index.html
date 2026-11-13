@@ -577,7 +577,7 @@ function markTex(pin){ const c=document.createElement('canvas'); c.width=c.heigh
   if(pin){ g.fillStyle='#fff'; g.beginPath(); g.arc(64,64,44,0,7); g.fill(); g.strokeStyle='#14303b'; g.lineWidth=12; g.stroke(); g.fillStyle='#14303b'; g.beginPath(); g.arc(64,64,14,0,7); g.fill(); }
   else{ g.strokeStyle='#0d6b7a'; g.lineWidth=10; g.beginPath(); g.arc(64,64,54,0,7); g.stroke(); }
   const t=new T.CanvasTexture(c); t.encoding=T.sRGBEncoding; return t; }
-const pin=new T.Sprite(new T.SpriteMaterial({map:markTex(true),transparent:true,depthTest:false,depthWrite:false})); pin.renderOrder=30; pin.scale.setScalar(1.15); pin.visible=false; scene.add(pin);
+const pin=new T.Sprite(new T.SpriteMaterial({map:markTex(true),transparent:true,depthTest:true,depthWrite:false})); pin.renderOrder=30; pin.scale.setScalar(1.7); pin.visible=false; scene.add(pin);
 const spot=new T.Sprite(new T.SpriteMaterial({map:markTex(false),transparent:true,depthTest:false,depthWrite:false})); spot.renderOrder=29; spot.visible=false; scene.add(spot);
 let spotFn=null;
 
@@ -683,9 +683,9 @@ function applyCfg(dia){ DIA=dia; const k=dia?'D':'R';
   put(bursa,CFG.bursa[k]); put(acJoint,CFG.ac[k]);
   if(dia) SHAFT.set(0,-1,0); else SHAFT.set(META.axis[0],META.axis[1],META.axis[2]).normalize(); Yax.copy(SHAFT).negate(); }
 const qE=new T.Quaternion(),qR=new T.Quaternion(),ax=V(),Yax=SHAFT.clone().negate(),dir=V();
-let curElev=0,curPain=0,curPinch=0,atRest=true;
+let curElev=0,curPain=0,curPinch=0,atRest=true,painOcc=false;
 function applyPose(time){
-  const sc=SC[S.sc], P=sc.pose(S.p);
+  const sc=SC[S.sc], pp=S.layer<2?0:S.p, P=sc.pose(pp);
   ax.set(-Math.sin(rad(P.plane)),0,Math.cos(rad(P.plane)));
   qE.setFromAxisAngle(ax,rad(P.elev)); qR.setFromAxisAngle(Yax,rad(P.rot));
   hum.quaternion.copy(qE).multiply(qR);
@@ -702,8 +702,8 @@ function applyPose(time){
   updSweep(bic.sw,resolve(bic),bic.o);
   curElev=P.elev; atRest=Math.abs(P.elev)<1&&Math.abs(P.rot)<1&&!P.pull&&!P.lift;
   const tf=[0,.8,1][S.tear];
-  curPain=clamp(sc.mech(S.p,S.sel)*tf,0,1);
-  curPinch=clamp(sc.pinch(S.p)*tf*(S.sel===0?1:.4),0,1);
+  curPain=clamp(sc.mech(pp,S.sel)*tf,0,1);
+  curPinch=clamp(sc.pinch(pp)*tf*(S.sel===0?1:.4),0,1);
   bursaMat.color.setRGB(lerp(.47,.9,curPinch),lerp(.71,.12,curPinch),lerp(.86,.14,curPinch));
   bursaMat.opacity=lerp(.62,.85,curPinch);
   // pain marker at the tear site
@@ -711,10 +711,10 @@ function applyPose(time){
   for(let i=sw.nSeg;i>=0;i--){ const d=(1-(1-Math.pow(1-i/sw.nSeg,1.8)))*sw.L; if(d>=target){bi=i;break;} }
   painPos.copy(sw.C[bi]);
   const I=curPain, pulse=1+.12*Math.sin(time*9);
-  glow.visible=I>.03; glow.position.copy(painPos); glow.scale.setScalar((1.4+3.4*I)*pulse); glow.material.opacity=clamp(.25+I,0,1);
+  glow.visible=I>.03; glow.position.copy(painPos); glow.scale.setScalar((1.4+3.4*I)*pulse); glow.material.opacity=clamp(.25+I,0,1)*(painOcc?.2:1);
   if(spotFn){ const ph=(time*1.1)%1; spot.visible=true; spot.position.copy(spotFn()); spot.scale.setScalar(1.5+ph*1.8); spot.material.opacity=1-ph*.75; } else spot.visible=false;
   capsule.visible=S.showCond==='frozen';
-  rings.forEach((r,k)=>{ const ph=((time*.9+k*.5)%1); r.visible=I>.25; r.position.copy(painPos); r.scale.setScalar(1+ph*(3+5*I)); r.material.opacity=(1-ph)*I*.8; });
+  rings.forEach((r,k)=>{ const ph=((time*.9+k*.5)%1); r.visible=I>.25&&!painOcc; r.position.copy(painPos); r.scale.setScalar(1+ph*(3+5*I)); r.material.opacity=(1-ph)*I*.8; });
 }
 
 /* ---------- labels ---------- */
@@ -767,6 +767,7 @@ const _v=V(),_d=V();
 function updLabels(W,Hh){
   frame++;
   const check=(frame%8===1);
+  if(frame%6===3&&S.layer>=2){ _d.subVectors(painPos,camera.position); const dd=_d.length(); ray.set(camera.position,_d.normalize()); ray.far=dd; const hh=ray.intersectObjects(occluders,false); painOcc=hh.length>0&&hh[0].distance<dd-1.4; }
   const act=[];
   for(const l of LABS){
     const ll=l.layer===undefined?2:l.layer;
@@ -824,16 +825,16 @@ function chips(host,items,get,set){ items.forEach(it=>{ const b=document.createE
   b.addEventListener('click',()=>{ set(it.v); sync(); }); host.appendChild(b); });
   return ()=>host.querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String(String(get())===b.dataset.v))); }
 const syncT=chips($('#tendonChips'),TEND.map((t,i)=>({label:t.name,v:i})),()=>S.sel,v=>{clearShow();if(S.layer<2)setLayer(2);S.sel=+v;});
-const pick=v=>{ S.sc=+v; S.p=0; S.dir=1; S.hold=0; S.playing=true; };
+const pick=v=>{ if(S.layer<2) setLayer(2); S.sc=+v; S.p=0; S.dir=1; S.hold=0; S.playing=true; };
 const syncA=chips($('#moveA'),SC.map((s,i)=>({label:s.name,v:i,g:s.g})).filter(s=>s.g===0),()=>S.sc,v=>{clearShow();pick(v);});
 const syncB=chips($('#moveB'),SC.map((s,i)=>({label:s.name,v:i,g:s.g})).filter(s=>s.g===1),()=>S.sc,v=>{clearShow();pick(v);});
 $('#tearSeg').querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{ clearShow(); if(S.layer<2) setLayer(2); S.tear=+b.dataset.v; sync(); }));
 document.querySelectorAll('.views button').forEach(b=>b.addEventListener('click',()=>goView(b.dataset.view)));
 const playBtn=$('#play'), scrub=$('#scrub');
 const play2=$('#play2');
-const togglePlay=()=>{ S.playing=!S.playing; if(S.playing&&SC[S.sc].g===1&&S.p>=1){S.p=0;} sync(); };
+const togglePlay=()=>{ if(!S.playing&&S.layer<2) setLayer(2); S.playing=!S.playing; if(S.playing&&SC[S.sc].g===1&&S.p>=1){S.p=0;} sync(); };
 playBtn.addEventListener('click',togglePlay); play2.addEventListener('click',togglePlay);
-scrub.addEventListener('input',()=>{ S.p=scrub.value/1000; S.playing=false; sync(); });
+scrub.addEventListener('input',()=>{ if(S.layer<2) setLayer(2); S.p=scrub.value/1000; S.playing=false; sync(); });
 $('#slow').addEventListener('change',e=>S.slow=e.target.checked);
 $('#optLabels').addEventListener('change',e=>S.labels=e.target.checked);
 $('#optSites').addEventListener('change',e=>S.sites=e.target.checked);
@@ -843,7 +844,7 @@ $('#optBursa').addEventListener('change',e=>S.bursa=e.target.checked);
 $('#optAll').addEventListener('change',e=>S.allLabels=e.target.checked);
 $('#optGhost').addEventListener('change',e=>S.ghost=e.target.checked);
 $('#optRoof').addEventListener('change',e=>{ const o=e.target.checked?.22:1; [roofMat,roofSweepMat,ligMat].forEach(m=>{m.opacity=o;m.depthWrite=o===1;}); collectOccluders(); });
-const LAYER_NOTE=['Tap the skin where it hurts.','The outer muscles. The rotator cuff tendons lie underneath them.','The real bones with the four cuff tendons. Tears are shown from this layer inwards.','A simplified, spread-out drawing of the same joint. It shows how the parts work more clearly than the real shapes.'];
+const LAYER_NOTE=['Tap the skin where it hurts. Movements play on the Bones and Diagram layers.','The outer muscles. The rotator cuff tendons lie underneath them. Movements play on the Bones and Diagram layers.','The real bones with the four cuff tendons. Tears are shown from this layer inwards.','A simplified, spread-out drawing of the same joint. It shows how the parts work more clearly than the real shapes.'];
 let cfgInit=false;
 function frameCam(){ const L=S.layer;
   if(L===3){ view.gtarget.set(-2.2,-2.6,0); view.gscale=1; }
@@ -852,9 +853,10 @@ function frameCam(){ const L=S.layer;
   const zb=$('#zoomBtn'); zb.hidden=L===3; zb.textContent=S.zoomJoint?'Zoom out':'Zoom to joint'; }
 function setLayer(l){ if(!META) l=3; S.layer=l;
   if(!cfgInit||(l===3)!==DIA){ applyCfg(l===3); cfgInit=true; }
-  frameCam(); collectOccluders();
+  if(l<2) S.playing=false;
+  frameCam(); collectOccluders(); snapPin();
   $('#layerSeg').querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String(+b.dataset.l===l)));
-  $('#layerNote').textContent=LAYER_NOTE[l]; }
+  $('#layerNote').textContent=LAYER_NOTE[l]+(PIN&&!PIN.cur?' The spot you tapped cannot be placed on this layer, so it is hidden here.':''); }
 $('#layerSeg').querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{ S.tourKeys=null; setLayer(+b.dataset.l); sync(); }));
 $('#zoomBtn').addEventListener('click',()=>{ S.zoomJoint=!S.zoomJoint; frameCam(); });
 function lookFrom(az,pol){ let ga=rad(az); const two=Math.PI*2; view.az=((view.az%two)+two)%two; if(ga-view.az>Math.PI) ga-=two; if(view.az-ga>Math.PI) ga+=two; view.gaz=ga; view.gpol=rad(pol); view.anim=true; }
@@ -1001,21 +1003,35 @@ QS.forEach(q=>{ const d=document.createElement('div'); d.className='q'; const s=
   q.o.forEach(o=>{ const b=document.createElement('button'); b.type='button'; b.textContent=o[1]; b.dataset.q=q.k; b.dataset.v=o[0];
     b.addEventListener('click',()=>{ if(q.multi){ F[q.k].has(o[0])?F[q.k].delete(o[0]):F[q.k].add(o[0]); } else F[q.k]=F[q.k]===o[0]?null:o[0]; renderFinder(); }); ch.appendChild(b); });
   $('#fQs').appendChild(d); });
-function clearFinder(){ F.region=null; F.mv.clear(); F.other.clear(); F.start=F.night=F.str=null; pin.visible=false; clearShow(); renderFinder(); }
+function clearFinder(){ F.region=null; F.mv.clear(); F.other.clear(); F.start=F.night=F.str=null; PIN=null; pin.visible=false; clearShow(); renderFinder(); }
 $('#fClear').addEventListener('click',()=>{ clearFinder(); sync(); });
 $('#reset').addEventListener('click',()=>{ clearFinder(); S.tear=1; S.sel=0; pick(0); S.p=0; S.playing=false; S.zoomJoint=false; S.tourKeys=null; tourI=-1; tourShow(); setLayer(0); sync(); });
 function showCond(id){ const c=COND[id].show; clearShow(); S.tourKeys=null; if(S.layer<2) setLayer(2); S.showCond=id; S.showNote=c.note||''; spotFn=c.spot||null;
   if(c.sel!=null) S.sel=c.sel; S.tear=c.tear; if(c.sc!=null) pick(c.sc); if(c.view) goView(c.view); sync();
   stage.scrollIntoView({block:'start',behavior:reduce?'auto':'smooth'}); }
 const tray=new T.Raycaster(), ndc=new T.Vector2();
+let PIN=null; const _pw=V(), _pc=V(), prc=new T.Raycaster();
+const groupOf=o=>{ for(let q=o;q;q=q.parent){ if(q===hum||q===girdle||q===clavG) return q; } return scene; };
+function snapPin(){ if(!PIN) return; const L=S.layer;
+  if((PIN.L===3)!==(L===3)){ PIN.cur=null; return; }                  // the diagram is a different shape, so spots do not carry across
+  if(L===PIN.L){ PIN.cur={par:PIN.par,loc:PIN.loc}; return; }
+  scene.updateMatrixWorld(true); const list=layerMeshes(true); let best=null;
+  for(const sg of [-1,1]){ prc.set(PIN.w.clone().addScaledVector(PIN.n,-sg*.2),PIN.n.clone().multiplyScalar(sg)); prc.far=9; const h=prc.intersectObjects(list,false)[0]; if(h&&(!best||h.distance<best.distance)) best=h; }
+  if(!best){ PIN.cur=null; return; }
+  const par=groupOf(best.object); PIN.cur={par,loc:par.worldToLocal(best.point.clone())}; }
+function pinUpdate(){ if(!PIN||!PIN.cur){ pin.visible=false; return; }
+  _pw.copy(PIN.cur.loc); PIN.cur.par.localToWorld(_pw); _pc.subVectors(camera.position,_pw).normalize();
+  pin.position.copy(_pw).addScaledVector(_pc,.45); pin.visible=true; }
 function tapAt(cx,cy){
   const r=canvas.getBoundingClientRect(); ndc.set((cx-r.left)/r.width*2-1,-((cy-r.top)/r.height)*2+1); tray.setFromCamera(ndc,camera);
   const h=tray.intersectObjects(layerMeshes(true),false)[0]; if(!h) return;
-  const o=h.object; let rg, par=scene;
+  const o=h.object; let rg;
   if(o.userData.real){ const d=DEF.find(x=>x.mesh===o), a=h.face?h.face.a*3:0; rg=regionAt(d&&h.face?V(d.P0[a],d.P0[a+1],d.P0[a+2]):h.point); }
-  else{ rg=typeof o.userData.reg==='function'?o.userData.reg(h):o.userData.reg; for(let q=o;q;q=q.parent){ if(q===hum||q===girdle){par=q;break;} } }
+  else rg=typeof o.userData.reg==='function'?o.userData.reg(h):o.userData.reg;
   if(!rg) return;
-  par.add(pin); pin.position.copy(par.worldToLocal(h.point.clone())); pin.visible=true;
+  const par=groupOf(o), n=h.face?h.face.normal.clone().transformDirection(o.matrixWorld):V(0,0,1);
+  if(n.dot(_pc.subVectors(camera.position,h.point))<0) n.negate();
+  PIN={L:S.layer,w:h.point.clone(),n,par,loc:par.worldToLocal(h.point.clone())}; PIN.cur={par:PIN.par,loc:PIN.loc};
   F.region=rg; renderFinder();
 }
 window.shoulder_tap=tapAt;
@@ -1023,7 +1039,7 @@ window.shoulder_tap=tapAt;
 /* ---------- fades, bending of skin and muscles, visibility ---------- */
 function setAlpha(m,a,isSkin){ if(!m) return; m.opacity=a; m.transparent=a<.985; m.depthWrite=a>.5;
   if(isSkin){ const sd=a>.5?T.DoubleSide:T.FrontSide; if(m.side!==sd){ m.side=sd; m.needsUpdate=true; } } }
-function fades(){ const L=S.layer, tS=L===0?1:(L<3&&S.ghost?.13:0), tM=L===1?1:0, k=reduce?1:.16;
+function fades(){ const L=S.layer, tS=L===0?1:(L<3&&S.ghost&&(L===1||atRest)?.13:0), tM=L===1?1:0, k=reduce?1:.16;
   S.aSkin+=(tS-S.aSkin)*k; if(Math.abs(tS-S.aSkin)<.004) S.aSkin=tS;
   S.aMus+=(tM-S.aMus)*k; if(Math.abs(tM-S.aMus)<.004) S.aMus=tM;
   setAlpha(skinMat,S.aSkin,true); musMats.forEach(m=>setAlpha(m,S.aMus,false)); }
@@ -1061,7 +1077,7 @@ function tick(now){
   }
   if(S.spin) view.az+=dt*.35;
   if(view.anim){ view.az=lerp(view.az,view.gaz,.14); view.pol=lerp(view.pol,view.gpol,.14); if(Math.abs(view.az-view.gaz)+Math.abs(view.pol-view.gpol)<.002) view.anim=false; }
-  placeCamera(); applyPose(time); fades(); deform(); vis();
+  placeCamera(); applyPose(time); fades(); vis(); pinUpdate();
   hud(); updLabels(W,Hh);
   renderer.render(scene,camera);
   requestAnimationFrame(tick);
