@@ -240,6 +240,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
         <label><input type="checkbox" id="optSites" checked> Show in red every place a tear can happen</label>
         <label><input type="checkbox" id="optRoof"> Make the bony roof and collarbone see-through</label>
         <label><input type="checkbox" id="optBursa" checked> Show the cushion sac (bursa)</label>
+        <label><input type="checkbox" id="optRibs"> Show the ribs and breastbone behind the shoulder blade</label>
         <label><input type="checkbox" id="optSpin"> Spin the model slowly</label>
       </div>
     </section>
@@ -255,8 +256,8 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
         <dt>Collarbone joint</dt><dd>Acromioclavicular (AC) joint, where the collarbone meets the bony roof.</dd>
         <dt>Cushion sac</dt><dd>Subacromial bursa. Lets the tendon slide under the roof.</dd>
       </dl>
-      <p class="note">A simplified teaching model, drawn by hand rather than taken from a scan. Pain differs between people: some full tears cause more weakness than pain. It is not a tool for diagnosis.</p>
-      <p class="note">Skin, muscle and bone shapes in the Skin and Muscles layers: BodyParts3D, © The Database Center for Life Science, licensed under CC Attribution-Share Alike 2.1 Japan. Cropped, simplified and repositioned for this app.</p>
+      <p class="note">A simplified teaching model. The skin, outer muscles and bones come from a real anatomical dataset; the four cuff tendons, tears and movements are drawn by the app. Pain differs between people: some full tears cause more weakness than pain. It is not a tool for diagnosis.</p>
+      <p class="note">Skin, muscle and bone shapes: BodyParts3D, © The Database Center for Life Science, licensed under CC Attribution-Share Alike 2.1 Japan. Cropped, simplified and repositioned for this app.</p>
     </section>
   </div>
 </main>
@@ -306,6 +307,31 @@ const cartMat=new T.MeshStandardMaterial({color:0xa9c9d6,roughness:.35});
 const ligMat=new T.MeshStandardMaterial({color:0xd9d3bb,roughness:.6,side:T.DoubleSide,transparent:true,opacity:1});
 const muscleMat=new T.MeshStandardMaterial({vertexColors:true,map:fibreTex(),roughness:.62,side:T.DoubleSide});
 const bursaMat=new T.MeshStandardMaterial({color:0x79b4dc,roughness:.25,transparent:true,opacity:.62,depthWrite:false});
+
+/* ---------- real anatomy layers (skin, outer muscles) from BodyParts3D ---------- */
+const real=new T.Group(); scene.add(real); const realMeshes=[], REALG={}; let META=null;
+(function(){ const Ld=window.SHOULDER_LAYERS; if(!Ld) return; META=Ld.meta;
+  const dec=s=>{ const bin=atob(s), u=new Uint8Array(bin.length); for(let i=0;i<bin.length;i++) u[i]=bin.charCodeAt(i); return new Uint16Array(u.buffer); };
+  const mats={skin:new T.MeshStandardMaterial({color:0xc79775,roughness:.88,side:T.DoubleSide}),
+    bone:new T.MeshStandardMaterial({color:0xd6c49c,roughness:.8,side:T.DoubleSide}),cart:new T.MeshStandardMaterial({color:0xa9c9d6,roughness:.4,side:T.DoubleSide})};
+  const mus={}, tint=[0xab463d,0xa23f37,0xb24d43,0x9b3b34];
+  Ld.parts.forEach(pt=>{ const q=dec(pt.p), pos=new Float32Array(q.length); for(let i=0;i<q.length;i++) pos[i]=pt.mn[i%3]+q[i]*pt.sc;
+    const g=new T.BufferGeometry(); g.setAttribute('position',new T.BufferAttribute(pos,3)); const idx=dec(pt.i); let all=idx; if(pt.i2){ const i2=dec(pt.i2); all=new Uint16Array(idx.length+i2.length); all.set(idx); all.set(i2,idx.length); }
+    g.setIndex(new T.BufferAttribute(all,1)); g.computeVertexNormals(); g.computeBoundingBox();
+    const sub=ix=>{ const q2=new T.BufferGeometry(); q2.setAttribute('position',g.attributes.position); q2.setAttribute('normal',g.attributes.normal); q2.setIndex(new T.BufferAttribute(ix,1)); q2.computeBoundingSphere(); return q2; };
+    if(pt.i2){ REALG.scapBody=sub(idx); REALG.scapRoof=sub(dec(pt.i2)); } else if(pt.g==='humerus'||pt.g==='clavicle') REALG[pt.g]=g;
+    let m=mats[pt.k]; if(pt.k==='mus'){ if(!mus[pt.g]) mus[pt.g]=new T.MeshStandardMaterial({color:tint[Object.keys(mus).length%4],roughness:.58,side:T.DoubleSide}); m=mus[pt.g]; }
+    const mesh=new T.Mesh(g,m); mesh.userData.real=pt.k; mesh.userData.g=pt.g; mesh.visible=false; real.add(mesh); realMeshes.push(mesh); });
+})();
+function regionAt(p){ const a=META.axis, ac=META.ac, s=p.x*a[0]+p.y*a[1]+p.z*a[2];
+  const rz=p.z-s*a[2], r=Math.hypot(p.x-s*a[0],p.y-s*a[1],rz);
+  if(Math.hypot(p.x-ac[0],p.y-ac[1],p.z-ac[2])<2.6&&p.y>ac[1]-.8) return 'A';
+  if(s>5&&r<5.8){ if(rz>.5*r) return s<10?'C':'E'; if(rz<-.5*r) return s<9?'D':'E'; return 'E'; }
+  if(s<=5&&p.length()<9.5&&p.x>-4){ if(p.y>2.2&&Math.abs(p.z)<3) return 'B'; if(p.z>1.8) return 'C'; if(p.z<-1.8) return 'D'; return p.y>0?'B':'E'; }
+  if(p.y>ac[1]-1) return 'F';
+  return p.z<META.zmid?'F':'H'; }
+
+const lmv=k=>V(META.lm[k][0],META.lm[k][1],META.lm[k][2]);
 
 /* ---------- geometry helpers ---------- */
 function blob(rx,ry,rz,mat,pos,amp,parent,shape){
@@ -394,7 +420,7 @@ const glenoid=blob(.3,1.8,1.3,cartMat,V(-2.72,0,0),0,girdle,y=>1-.28*Math.max(0,
 const acromion=blob(2.15,.36,1.65,roofMat,V(.75,3.85,-.45),.03,girdle);                 // bony roof
 const bursa=blob(1.95,.2,1.5,bursaMat,V(.85,3.2,-.15),0,girdle); bursa.renderOrder=3;
 glenoid.userData.reg='G'; acromion.userData.reg='B'; bursa.userData.reg='B';
-blob(.55,.42,.62,ligMat,V(-.8,4.22,.2),0,girdle).userData.reg='A';                        // collarbone (AC) joint
+const acJoint=blob(.55,.42,.62,ligMat,V(-.8,4.22,.2),0,girdle); acJoint.userData.reg='A';                        // collarbone (AC) joint
 
 function staticSweep(pts,prof,up,mat,nSeg,nRad){ const s=mkSweep(nSeg||28,nRad||14,mat,girdle); updSweep(s,pts,{prof,up:up||upY}); return s; }
 // thick outer edge of the blade
@@ -406,13 +432,16 @@ staticSweep([Bp(-7.9,1.3,-.25),Bp(-5.2,2.1,-.9),Bp(-2.7,2.9,-1.5),V(-2.5,3.55,-2
 // hook of bone at the front (coracoid)
 staticSweep([V(-3.45,2.0,.05),V(-3.25,3.0,.9),V(-2.6,3.15,2.0),V(-1.55,2.65,2.75)],(t,d,o)=>{o[0]=lerp(.62,.4,t);o[1]=lerp(.55,.36,t);},upY,boneSweepMat,22,14).mesh.userData.reg='C';
 // band between the hook and the roof
-staticSweep([V(-1.75,2.9,2.55),V(-.35,3.45,1.95),V(1.15,3.66,1.0)],(t,d,o)=>{o[0]=.5;o[1]=.07;},upY,ligMat,14,10).mesh.userData.reg='C';
+const caLig=staticSweep([V(-1.75,2.9,2.55),V(-.35,3.45,1.95),V(1.15,3.66,1.0)],(t,d,o)=>{o[0]=.5;o[1]=.07;},upY,ligMat,14,10); caLig.mesh.userData.reg='C';
 
 // collarbone: inner end fixed at the breastbone, outer end follows the roof
 const clav=mkSweep(34,16,roofSweepMat,scene); clav.mesh.userData.reg=h=>h.uv&&h.uv.y>.62?'A':'F';
 const clavPts=[[-13.5,2.6,3.4,0],[-10.5,3.3,4.1,.15],[-6.5,4.0,3.2,.5],[-3.0,4.38,1.2,.85],[-.95,4.32,.25,1]].map(a=>({p:V(a[0],a[1],a[2]),w:a[3],o:V()}));
 const clavO={prof:(t,d,o)=>{ o[0]=lerp(.8,.62,sst(0,.3,t))+.4*sst(.6,1,t); o[1]=lerp(.8,.6,sst(0,.3,t))-.2*sst(.6,1,t); },up:upY};
-function updClav(g){ for(const c of clavPts){ const a=g*c.w, cs=Math.cos(a), sn=Math.sin(a); c.o.set(c.p.x*cs-c.p.y*sn,c.p.x*sn+c.p.y*cs,c.p.z); }
+let clavG=null;
+function updClav(g){
+  if(clavG){ const S=clavG.position, a=lmv('clavL'), cs=Math.cos(g), sn=Math.sin(g), b=V(a.x*cs-a.y*sn,a.x*sn+a.y*cs,a.z);
+    clavG.quaternion.setFromUnitVectors(a.sub(S).normalize(),b.sub(S).normalize()); clavG.updateMatrixWorld(true); return; } for(const c of clavPts){ const a=g*c.w, cs=Math.cos(a), sn=Math.sin(a); c.o.set(c.p.x*cs-c.p.y*sn,c.p.x*sn+c.p.y*cs,c.p.z); }
   updSweep(clav,clavPts.map(c=>c.o),clavO); }
 
 /* ---------- arm bone ---------- */
@@ -429,6 +458,21 @@ blob(1.85,1.7,1.85,boneMat,V(.65,-.7,0),.03,hum);          // neck
 function humReg(h){ const p=hum.worldToLocal(h.point.clone());
   if(p.y<-2.2) return 'E'; if(p.y>1.5) return 'B'; if(p.z>1.1) return 'C'; if(p.z<-1.1) return 'D'; return p.x>.8?'E':'G'; }
 hum.children.forEach(c=>c.userData.reg=humReg);
+if(META){
+  const keep=[bursa,acJoint,caLig.mesh];
+  [girdle,hum].forEach(gr=>gr.traverse(o=>{ if(o.isMesh&&keep.indexOf(o)<0){ o.visible=false; o.userData.off=true; delete o.userData.reg; } }));
+  clav.mesh.visible=false; clav.mesh.userData.off=true; delete clav.mesh.userData.reg;
+  const rBone=new T.MeshStandardMaterial({color:0xd6c49c,roughness:.8,side:T.DoubleSide});
+  const add=(geo,mat,par,fr)=>{ const m=new T.Mesh(geo,mat); m.frustumCulled=false; par.add(m); m.userData.reg=h=>regionAt(fr?fr.worldToLocal(h.point.clone()):h.point); return m; };
+  add(REALG.scapBody,rBone,girdle,girdle); add(REALG.scapRoof,roofSweepMat,girdle,girdle); add(REALG.humerus,rBone,hum,hum);
+  clavG=new T.Group(); clavG.position.copy(lmv('clavS')); scene.add(clavG);
+  add(REALG.clavicle,roofSweepMat,clavG,null).position.copy(clavG.position).negate();
+  const under=lmv('acrUnder'), ud=under.clone().normalize();
+  bursa.position.copy(ud).multiplyScalar(under.length()-.1); bursa.quaternion.setFromUnitVectors(V(0,1,0),ud); bursa.scale.set(.78,.55,.78);
+  acJoint.position.copy(lmv('clavL')).add(V(.3,-.05,.05)); acJoint.scale.setScalar(.8);
+  const c0=lmv('cor'), c1=lmv('acrFront'), cm=c0.clone().add(c1).multiplyScalar(.5); if(cm.length()<3.6) cm.setLength(3.6);
+  updSweep(caLig,[c0,cm,c1],{prof:(t,d,o)=>{o[0]=.45;o[1]=.07;},up:upY});
+}
 const capsule=new T.Mesh(new T.SphereGeometry(2.66,36,24),new T.MeshStandardMaterial({color:0xe04a4a,transparent:true,opacity:.42,depthWrite:false,roughness:.4}));
 capsule.visible=false; capsule.renderOrder=4; hum.add(capsule);
 
@@ -443,6 +487,9 @@ const MUS=[
   {pts:[G(Bp(-3.9,-6.5,-.5)),G(Bp(-2.4,-4.0,-.75)),G(V(-2.0,-1.5,-2.2)),H(V(1.65,-.3,-1.72))],up:POST,aB:.85,bB:.52,aT:.55,bT:.22,rep:4},
   {pts:[G(Bp(-6.2,-2.5,.55)),G(Bp(-3.8,-1.3,.85)),G(Bp(-1.2,-.3,1.0)),G(V(-2.35,0,1.85)),H(V(.85,-.1,2.55))],up:ANT,aB:2.6,bB:.78,aT:1.2,bT:.28,rep:9}
 ];
+const WRAP_R=META?2.2:2.4;
+if(META) META.cuff.forEach((c,i)=>{ const m=MUS[i]; const gp=c.g.length>3?[c.g[0],c.g[c.g.length>>1],c.g[c.g.length-1]]:c.g; m.pts=gp.map(p=>G(V(p[0],p[1],p[2]))).concat([H(V(c.h[0],c.h[1],c.h[2]))]);
+  m.up=V(c.up[0],c.up[1],c.up[2]); m.aB=Math.min(c.aB,3.0); m.bB=Math.min(c.bB,.95); m.aT=Math.min(c.aT,1.1); });
 const mCol={d:[.62,.25,.22],l:[.80,.40,.35],t:[.95,.92,.84]};
 const NS=76, NR=26;
 MUS.forEach((m,i)=>{
@@ -450,7 +497,7 @@ MUS.forEach((m,i)=>{
   m.tearMat=new T.MeshStandardMaterial({color:0xe3141f,emissive:0xd00010,emissiveIntensity:.3,roughness:.5,side:T.DoubleSide,transparent:true,opacity:.5});
   m.ov=mkSweep(NS,NR,m.tearMat,scene); m.ov.mesh.renderOrder=2;
   m.mode=0; m.world=m.pts.map(()=>V());
-  m.wrap={c:hum.position,R:2.4,b:m.bT};
+  m.wrap={c:hum.position,R:WRAP_R,b:m.bT};
   m.prof=(t,d,o)=>{
     const belly=sst(0,.18,t)*(1-sst(.5,.86,t));
     let a=lerp(m.aT,m.aB,1-sst(.45,.9,t))*(.7+.3*sst(0,.15,t));
@@ -473,32 +520,13 @@ MUS.forEach((m,i)=>{
 });
 // biceps tendon (for orientation)
 const bic={pts:[G(V(-2.45,2.05,.05)),H(V(1.6,1.5,1.72)),H(V(2.0,-1.0,2.0)),H(V(1.8,-4,1.5)),H(V(1.6,-8,1.38)),H(V(1.5,-12.6,1.45))]};
+if(META) bic.pts=[G(V(META.bic.g[0],META.bic.g[1],META.bic.g[2]))].concat(META.bic.h.map(p=>H(V(p[0],p[1],p[2]))));
 bic.sw=mkSweep(60,14,muscleMat,scene); bic.sw.mesh.userData.reg='C'; bic.world=bic.pts.map(()=>V());
 bic.o={prof:(t,d,o)=>{ const r=lerp(.24,.85,sst(.5,.8,t))*(1-.75*sst(.93,1,t)); o[0]=r; o[1]=r*.9; },
   up:(t,o)=>o.set(0,0,1), color:(t,d,o)=>{ const tf=1-sst(.42,.62,t); for(let q=0;q<3;q++) o[q]=lerp(lerp(mCol.d[q],mCol.l[q],.5),mCol.t[q],tf); },
-  wrap:{c:hum.position,R:2.36,b:.2},k:1,rep:3};
+  wrap:{c:hum.position,R:WRAP_R-.04,b:.2},k:1,rep:3};
 
 function resolve(m){ for(let i=0;i<m.pts.length;i++){ const q=m.pts[i]; m.world[i].copy(q.p).applyMatrix4(q.f==='g'?girdle.matrixWorld:hum.matrixWorld); } return m.world; }
-
-/* ---------- real anatomy layers (skin, outer muscles) from BodyParts3D ---------- */
-const real=new T.Group(); scene.add(real); const realMeshes=[]; let META=null;
-(function(){ const Ld=window.SHOULDER_LAYERS; if(!Ld) return; META=Ld.meta;
-  const dec=s=>{ const bin=atob(s), u=new Uint8Array(bin.length); for(let i=0;i<bin.length;i++) u[i]=bin.charCodeAt(i); return new Uint16Array(u.buffer); };
-  const mats={skin:new T.MeshStandardMaterial({color:0xc79775,roughness:.88,side:T.DoubleSide}),
-    bone:new T.MeshStandardMaterial({color:0xd6c49c,roughness:.8,side:T.DoubleSide}),cart:new T.MeshStandardMaterial({color:0xa9c9d6,roughness:.4,side:T.DoubleSide})};
-  const mus={}, tint=[0xab463d,0xa23f37,0xb24d43,0x9b3b34];
-  Ld.parts.forEach(pt=>{ const q=dec(pt.p), pos=new Float32Array(q.length); for(let i=0;i<q.length;i++) pos[i]=pt.mn[i%3]+q[i]*pt.sc;
-    const g=new T.BufferGeometry(); g.setAttribute('position',new T.BufferAttribute(pos,3)); g.setIndex(new T.BufferAttribute(dec(pt.i),1)); g.computeVertexNormals(); g.computeBoundingBox();
-    let m=mats[pt.k]; if(pt.k==='mus'){ if(!mus[pt.g]) mus[pt.g]=new T.MeshStandardMaterial({color:tint[Object.keys(mus).length%4],roughness:.58,side:T.DoubleSide}); m=mus[pt.g]; }
-    const mesh=new T.Mesh(g,m); mesh.userData.real=pt.k; mesh.userData.g=pt.g; mesh.visible=false; real.add(mesh); realMeshes.push(mesh); });
-})();
-function regionAt(p){ const a=META.axis, ac=META.ac, s=p.x*a[0]+p.y*a[1]+p.z*a[2];
-  const rz=p.z-s*a[2], r=Math.hypot(p.x-s*a[0],p.y-s*a[1],rz);
-  if(Math.hypot(p.x-ac[0],p.y-ac[1],p.z-ac[2])<2.6&&p.y>ac[1]-.8) return 'A';
-  if(s>5&&r<5.8){ if(rz>.5*r) return s<10?'C':'E'; if(rz<-.5*r) return s<9?'D':'E'; return 'E'; }
-  if(s<=5&&p.length()<9.5&&p.x>-4){ if(p.y>2.2&&Math.abs(p.z)<3) return 'B'; if(p.z>1.8) return 'C'; if(p.z<-1.8) return 'D'; return p.y>0?'B':'E'; }
-  if(p.y>ac[1]-1) return 'F';
-  return p.z<META.zmid?'F':'H'; }
 
 /* ---------- pain markers ---------- */
 function radialTex(ring){
@@ -611,18 +639,19 @@ const TEAR_TXT=[
 
 /* ---------- state ---------- */
 const reduce=window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches;
-const S={layer:2,showCond:null,showNote:'',tear:1,sel:0,sc:0,p:.55,dir:1,playing:false,hold:0,slow:false,labels:true,sites:true,spin:false};
+const S={ribs:false,layer:2,showCond:null,showNote:'',tear:1,sel:0,sc:0,p:.55,dir:1,playing:false,hold:0,slow:false,labels:true,sites:true,spin:false};
 const view={az:rad(-28),pol:rad(74),rad:50,gaz:rad(-28),gpol:rad(74),target:V(-2.2,-2.6,0),gtarget:V(-2.2,-2.6,0),lscale:1,gscale:1,anim:false,zoom:1};
 
 /* ---------- pose ---------- */
-const qE=new T.Quaternion(),qR=new T.Quaternion(),ax=V(),Yax=V(0,1,0),dir=V();
+const SHAFT=META?V(META.axis[0],META.axis[1],META.axis[2]).normalize():V(0,-1,0);
+const qE=new T.Quaternion(),qR=new T.Quaternion(),ax=V(),Yax=SHAFT.clone().negate(),dir=V();
 let curElev=0,curPain=0,curPinch=0;
 function applyPose(time){
   const sc=SC[S.sc], P=sc.pose(S.p);
   ax.set(-Math.sin(rad(P.plane)),0,Math.cos(rad(P.plane)));
   qE.setFromAxisAngle(ax,rad(P.elev)); qR.setFromAxisAngle(Yax,rad(P.rot));
   hum.quaternion.copy(qE).multiply(qR);
-  dir.set(0,-1,0).applyQuaternion(hum.quaternion);
+  dir.copy(SHAFT).applyQuaternion(hum.quaternion);
   hum.position.set(0,0,0).addScaledVector(dir,P.pull||0); hum.position.y+=(P.lift||0);
   if(S.tear===2&&S.sel===0) hum.position.y+=.2*sst(15,70,P.elev);          // ball rides up with a full top-tendon tear
   const g=P.plane>-45?rad(clamp((P.elev-25)*.4,0,40)):0;
@@ -655,14 +684,14 @@ const labHost=$('#labels'), svg=$('#leaders'), NSV='http://www.w3.org/2000/svg';
 const gAnchor=p=>()=>p.clone().applyMatrix4(girdle.matrixWorld), hAnchor=p=>()=>p.clone().applyMatrix4(hum.matrixWorld);
 const mi=Math.round(.56*NS);
 const LABS=[
- {t:'Collarbone',f:()=>clav.C[15].clone()},
- {t:'Bony roof',f:gAnchor(V(1.7,4.15,-.3))},
- {t:'Shoulder blade',f:gAnchor(Bp(-4.6,-6.2,0))},
- {t:'Hook of bone',f:gAnchor(V(-1.6,2.75,2.9))},
- {t:'Cushion sac',f:gAnchor(V(2.5,3.25,.3)),bursa:true},
- {t:'Collarbone joint',f:gAnchor(V(-.8,4.5,.4))},
- {t:'Ball of the joint',f:hAnchor(V(-.9,.6,2.0))},
- {t:'Arm bone',f:hAnchor(V(.9,-8.5,1.1))},
+ {t:'Collarbone',f:()=>clavG?clavG.localToWorld(lmv('clavMid').sub(clavG.position)):clav.C[15].clone()},
+ {t:'Bony roof',f:gAnchor(META?lmv('acrTop'):V(1.7,4.15,-.3))},
+ {t:'Shoulder blade',f:gAnchor(META?lmv('blade'):Bp(-4.6,-6.2,0))},
+ {t:'Hook of bone',f:gAnchor(META?lmv('cor'):V(-1.6,2.75,2.9))},
+ {t:'Cushion sac',f:META?()=>bursa.getWorldPosition(V()):gAnchor(V(2.5,3.25,.3)),bursa:true},
+ {t:'Collarbone joint',f:gAnchor(META?lmv('clavL').add(V(.3,.2,0)):V(-.8,4.5,.4))},
+ {t:'Ball of the joint',f:hAnchor(META?V(-.6,.2,2.2):V(-.9,.6,2.0))},
+ {t:'Arm bone',f:hAnchor(META?lmv('shaft'):V(.9,-8.5,1.1))},
  {t:'Biceps tendon',f:()=>bic.sw.C[20].clone()},
  {t:'Top tendon',f:()=>MUS[0].sw.C[mi].clone()},
  {t:'Back tendon',f:()=>MUS[1].sw.C[mi].clone()},
@@ -686,7 +715,7 @@ LABS.forEach(l=>{ l.el=document.createElement('div'); l.el.className='lab off'+(
 function measureLabels(){ LABS.forEach(l=>{ l.w=l.el.offsetWidth||80; l.h=l.el.offsetHeight||14; }); }
 const ray=new T.Raycaster(), occluders=[]; let frame=0;
 function collectOccluders(){ occluders.length=0; if(S.layer<2){ realMeshes.forEach(m=>{ if(m.visible) occluders.push(m); }); return; }
-  scene.traverse(o=>{ if(o.isMesh&&!o.userData.real&&o!==bursa&&o!==capsule&&!MUS.some(m=>m.ov.mesh===o)){ if(roofMat.opacity<1&&(o.material===roofMat||o.material===roofSweepMat||o.material===ligMat)) return; occluders.push(o);} }); }
+  scene.traverse(o=>{ if(o.isMesh&&!o.userData.real&&!o.userData.off&&o!==bursa&&o!==capsule&&!MUS.some(m=>m.ov.mesh===o)){ if(roofMat.opacity<1&&(o.material===roofMat||o.material===roofSweepMat||o.material===ligMat)) return; occluders.push(o);} }); }
 const _v=V(),_d=V();
 function updLabels(W,Hh){
   frame++;
@@ -760,13 +789,14 @@ scrub.addEventListener('input',()=>{ setLayer(2); S.p=scrub.value/1000; S.playin
 $('#slow').addEventListener('change',e=>S.slow=e.target.checked);
 $('#optLabels').addEventListener('change',e=>S.labels=e.target.checked);
 $('#optSites').addEventListener('change',e=>S.sites=e.target.checked);
+$('#optRibs').addEventListener('change',e=>{ S.ribs=e.target.checked; setLayer(S.ribs?2:S.layer); });
 $('#optSpin').addEventListener('change',e=>{S.spin=e.target.checked; view.anim=false;});
 $('#optBursa').addEventListener('change',e=>bursa.visible=e.target.checked);
 $('#optRoof').addEventListener('change',e=>{ const o=e.target.checked?.22:1; [roofMat,roofSweepMat,ligMat].forEach(m=>{m.opacity=o;m.depthWrite=o===1;}); collectOccluders(); });
 const LAYER_NOTE=['Tap the skin where it hurts.','The outer muscles. The rotator cuff tendons lie underneath them.','The joint itself. Tears and movements are shown on this layer.'];
 function setLayer(l){ if(!META) l=2; S.layer=l;
-  realMeshes.forEach(m=>{ m.visible=m.userData.real==='skin'?l===0:l===1; });
-  view.gtarget.copy(l<2?V(-5,-8,2):V(-2.2,-2.6,0)); view.gscale=l<2?2.05:1;
+  realMeshes.forEach(m=>{ const k=m.userData.real, g=m.userData.g; m.visible=k==='skin'?l===0:(l===1||(l===2&&S.ribs&&(g==='rib'||g==='sternum'||g==='cartilage'))); });
+  view.gtarget.copy(l<2?V(-5,-8,2):(META?V(-3,-4,-2):V(-2.2,-2.6,0))); view.gscale=l<2?2.05:(META?1.15:1);
   if(l<2) S.playing=false; collectOccluders();
   $('#layerSeg').querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String(+b.dataset.l===l)));
   $('#layerNote').textContent=LAYER_NOTE[l]; }
@@ -803,16 +833,16 @@ const REG={
 const HEALTHY_NOTE='Shown on a healthy cuff. The pulsing ring marks the part involved.';
 const COND={
  supra:{n:'Tear of the top tendon',m:'Rotator cuff tear, supraspinatus',d:'The tendon over the top of the ball is frayed or torn. Typical signs are pain lifting the arm out to the side, pain at night and weakness holding the arm up. The pain is often felt on the outer upper arm, below the tear itself.',show:{sel:0,tear:1,sc:0,view:'front'}},
- imp:{n:'Pinched, irritated tendon and cushion sac',m:'Subacromial pain, also called impingement or bursitis',d:'The top tendon and the cushion sac are sore and swollen, so they catch under the bony roof as the arm lifts. This is the commonest cause of shoulder pain. The arm is sore but usually still strong.',show:{sel:0,tear:1,sc:0,view:'front',spot:gAnchor(V(1.6,3.2,.4)),note:'Shown as a sore, swollen top tendon and cushion sac being pinched under the bony roof. The tendon does not have to be torn for this to hurt.'}},
+ imp:{n:'Pinched, irritated tendon and cushion sac',m:'Subacromial pain, also called impingement or bursitis',d:'The top tendon and the cushion sac are sore and swollen, so they catch under the bony roof as the arm lifts. This is the commonest cause of shoulder pain. The arm is sore but usually still strong.',show:{sel:0,tear:1,sc:0,view:'front',spot:META?()=>bursa.getWorldPosition(V()):gAnchor(V(1.6,3.2,.4)),note:'Shown as a sore, swollen top tendon and cushion sac being pinched under the bony roof. The tendon does not have to be torn for this to hurt.'}},
  infra:{n:'Tear of the back tendons',m:'Rotator cuff tear, infraspinatus or teres minor',d:'Pain at the back of the shoulder that is worse when turning the arm outward, with weakness in that movement.',show:{sel:1,tear:1,sc:3,view:'back'}},
  sub:{n:'Tear of the front tendon',m:'Rotator cuff tear, subscapularis',d:'Pain at the front that is worse turning the arm inward or reaching behind the back. It often follows the arm being forced outward or backwards.',show:{sel:3,tear:1,sc:4,view:'front'}},
  bic:{n:'Irritated biceps tendon',m:'Long head of biceps tendinopathy',d:'The tendon running up the groove at the front of the arm bone is sore. Pain is at the front and worse when lifting or reaching forward. It often comes along with rotator cuff trouble.',show:{tear:0,sc:1,view:'front',spot:()=>bic.sw.C[13],note:HEALTHY_NOTE}},
- ac:{n:'Worn or sprained collarbone joint',m:'Acromioclavicular (AC) joint',d:'Pain right on top of the shoulder that you can point to with one finger. It is worse reaching across the chest or lifting high overhead, and can follow a fall onto the point of the shoulder.',show:{tear:0,sc:0,view:'front',spot:gAnchor(V(-.8,4.25,.3)),note:HEALTHY_NOTE}},
+ ac:{n:'Worn or sprained collarbone joint',m:'Acromioclavicular (AC) joint',d:'Pain right on top of the shoulder that you can point to with one finger. It is worse reaching across the chest or lifting high overhead, and can follow a fall onto the point of the shoulder.',show:{tear:0,sc:0,view:'front',spot:gAnchor(META?lmv('clavL'):V(-.8,4.25,.3)),note:HEALTHY_NOTE}},
  frozen:{n:'Frozen shoulder',m:'Adhesive capsulitis',d:'The lining of the joint becomes inflamed and tight. The shoulder is stiff in every direction, even when someone else moves it, and often aches at night. Turning the arm outward is usually the first movement to go.',show:{tear:0,sc:3,view:'front',note:'Shown on a healthy cuff. The red shell is the joint lining, which is inflamed and tight in a frozen shoulder.'}},
- oa:{n:'Wear of the main joint',m:'Glenohumeral osteoarthritis',d:'The smooth surfaces of the ball and socket have worn. This gives a deep ache with stiffness and sometimes grinding, and it comes on slowly.',show:{tear:0,sc:3,view:'front',spot:gAnchor(V(-2.45,0,.9)),note:HEALTHY_NOTE}},
+ oa:{n:'Wear of the main joint',m:'Glenohumeral osteoarthritis',d:'The smooth surfaces of the ball and socket have worn. This gives a deep ache with stiffness and sometimes grinding, and it comes on slowly.',show:{tear:0,sc:3,view:'front',spot:gAnchor(META?lmv('glen'):V(-2.45,0,.9)),note:HEALTHY_NOTE}},
  calc:{n:'Chalky deposit in the tendon',m:'Calcific tendinopathy',d:'A small calcium deposit forms inside the top tendon. It can cause sudden, severe pain with no injury, and is often bad at night.',show:{sel:0,tear:0,sc:0,view:'front',spot:()=>painPos,note:HEALTHY_NOTE}},
- lab:{n:'Loose joint or torn socket rim',m:'Instability or labral tear',d:'The rim of the socket or the supports of the joint are damaged, often after a fall, a dislocation or repeated throwing. It may click, catch or feel as if it slips.',show:{tear:0,sc:6,view:'front',spot:gAnchor(V(-2.5,1.2,1.0)),note:HEALTHY_NOTE}},
- neck:{n:'Pain coming from the neck',m:'Referred pain or a trapped nerve',d:'Pain around the shoulder blade or running down the arm can start in the neck. Clues are pins and needles, pain below the elbow, or pain that changes when you move your neck.',show:{tear:0,view:'back',spot:gAnchor(Bp(-7.8,4.6,0)),note:'The neck is not part of this model. The ring marks the side nearest the neck, where this pain usually starts.'}}
+ lab:{n:'Loose joint or torn socket rim',m:'Instability or labral tear',d:'The rim of the socket or the supports of the joint are damaged, often after a fall, a dislocation or repeated throwing. It may click, catch or feel as if it slips.',show:{tear:0,sc:6,view:'front',spot:gAnchor(META?lmv('glen').add(V(0,1.3,.6)):V(-2.5,1.2,1.0)),note:HEALTHY_NOTE}},
+ neck:{n:'Pain coming from the neck',m:'Referred pain or a trapped nerve',d:'Pain around the shoulder blade or running down the arm can start in the neck. Clues are pins and needles, pain below the elbow, or pain that changes when you move your neck.',show:{tear:0,view:'back',spot:gAnchor(META?lmv('supAng'):Bp(-7.8,4.6,0)),note:'The neck is not part of this model. The ring marks the side nearest the neck, where this pain usually starts.'}}
 };
 const BASE={A:{ac:5,imp:2,supra:1.5,neck:1},B:{imp:4,supra:4,calc:2,ac:1.5,frozen:1},C:{bic:4,sub:3,imp:2,supra:1.5,lab:1.5,frozen:1.5,oa:1},
  D:{infra:4,neck:2,oa:1.5,lab:1.5,imp:1.5,frozen:1},E:{supra:4,imp:4,frozen:2,calc:1.5,neck:1.5},F:{neck:5,infra:1,imp:.5,oa:.5},G:{frozen:3,oa:3,lab:2.5,supra:1,imp:1},H:{neck:2,sub:1.5,ac:1.5,bic:1,imp:.5}};
@@ -926,7 +956,7 @@ function tick(now){
   if(S.spin) view.az+=dt*.35;
   if(view.anim){ view.az=lerp(view.az,view.gaz,.14); view.pol=lerp(view.pol,view.gpol,.14); if(Math.abs(view.az-view.gaz)+Math.abs(view.pol-view.gpol)<.002) view.anim=false; }
   placeCamera(); applyPose(time);
-  const mine=S.layer===2; girdle.visible=hum.visible=clav.mesh.visible=bic.sw.mesh.visible=mine;
+  const mine=S.layer===2; girdle.visible=hum.visible=bic.sw.mesh.visible=mine; clav.mesh.visible=mine&&!clavG; if(clavG) clavG.visible=mine;
   MUS.forEach(m=>{ m.sw.mesh.visible=mine; if(!mine) m.ov.mesh.visible=false; });
   if(!mine){ glow.visible=false; rings.forEach(r=>{r.visible=false;}); spot.visible=false; }
   hud(); updLabels(W,Hh);
