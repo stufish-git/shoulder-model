@@ -37,6 +37,10 @@ body{background:var(--paper);color:var(--ink);font-family:var(--f-body);font-siz
 header h1{font-family:var(--f-label);font-weight:600;font-size:22px;letter-spacing:.01em;margin:0;text-wrap:balance}
 header p{margin:2px 0 0;color:var(--muted);font-size:14px;max-width:65ch}
 
+.layerbar{display:grid;gap:4px}
+.layerbar p{margin:0;font-size:13px;color:var(--muted)}
+.seg.plain button[aria-pressed="true"]{background:var(--accent)}
+.finder a.vid{display:inline-block;font-size:13px;font-weight:500;color:var(--accent);margin-top:2px}
 .stage{position:relative;height:min(60vh,560px);min-height:340px;border:1px solid var(--line);border-radius:10px;overflow:hidden;
   background:radial-gradient(120% 90% at 50% 40%, #f4f8f9 0%, #e4ecef 55%, #cfdbe0 100%)}
 .stage canvas{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none;cursor:grab}
@@ -140,10 +144,18 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
 <main class="app">
   <header>
     <h1>Rotator cuff tears in the left shoulder</h1>
-    <p>Turn the model with your finger. Tap where it hurts to see what may be causing it, or choose a tear and a movement to see where it hurts and why.</p>
+    <p>Turn the model with your finger and tap where it hurts to see what may be causing it. Peel back the skin and muscles to see the joint, the tears and the movements.</p>
   </header>
 
   <div class="left">
+    <div class="layerbar" id="layerBar">
+      <div class="seg plain" id="layerSeg">
+        <button type="button" data-l="0">Skin</button>
+        <button type="button" data-l="1">Muscles</button>
+        <button type="button" data-l="2">Bones and tendons</button>
+      </div>
+      <p id="layerNote"></p>
+    </div>
     <section class="stage" id="stage" aria-label="3D model of the shoulder">
       <canvas id="gl"></canvas>
       <svg id="leaders" aria-hidden="true"></svg>
@@ -172,7 +184,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
         <div class="flag" id="fFlag"></div>
         <h3>What may be causing it, best fit first</h3>
         <ol id="fList"></ol>
-        <p class="exrule"><strong>Exercise rules:</strong> mild discomfort is fine, sharp pain is not. Stop any exercise that leaves the shoulder worse afterwards or the next day. Do a little, often. If it is no better after about six weeks, or it is getting worse, see a GP or physiotherapist.</p>
+        <p class="exrule"><strong>Exercise rules:</strong> mild discomfort is fine, sharp pain is not. Stop any exercise that leaves the shoulder worse afterwards or the next day. Do a little, often. If it is no better after about six weeks, or it is getting worse, see a GP or physiotherapist. The videos were made by NHS physiotherapy services for their own patients and open on their sites.</p>
         <button type="button" id="fClear">Clear and tap again</button>
       </div>
       <p class="warn"><strong>Get help fast:</strong> call 999 if shoulder or arm pain comes with chest tightness, breathlessness, sweating or feeling sick. Get seen the same day if the shoulder is hot, red and swollen with a fever, or looks out of shape after an injury. This guide suggests possibilities from where it hurts and your answers. It cannot examine you, so it is not a diagnosis, and the exercises are general ones, not a personal treatment plan.</p>
@@ -244,11 +256,13 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
         <dt>Cushion sac</dt><dd>Subacromial bursa. Lets the tendon slide under the roof.</dd>
       </dl>
       <p class="note">A simplified teaching model, drawn by hand rather than taken from a scan. Pain differs between people: some full tears cause more weakness than pain. It is not a tool for diagnosis.</p>
+      <p class="note">Skin, muscle and bone shapes in the Skin and Muscles layers: BodyParts3D, © The Database Center for Life Science, licensed under CC Attribution-Share Alike 2.1 Japan. Cropped, simplified and repositioned for this app.</p>
     </section>
   </div>
 </main>
 
 <script src="three.min.js"></script>
+<script src="layers.js"></script>
 <script>
 (function(){
 'use strict';
@@ -466,6 +480,26 @@ bic.o={prof:(t,d,o)=>{ const r=lerp(.24,.85,sst(.5,.8,t))*(1-.75*sst(.93,1,t)); 
 
 function resolve(m){ for(let i=0;i<m.pts.length;i++){ const q=m.pts[i]; m.world[i].copy(q.p).applyMatrix4(q.f==='g'?girdle.matrixWorld:hum.matrixWorld); } return m.world; }
 
+/* ---------- real anatomy layers (skin, outer muscles) from BodyParts3D ---------- */
+const real=new T.Group(); scene.add(real); const realMeshes=[]; let META=null;
+(function(){ const Ld=window.SHOULDER_LAYERS; if(!Ld) return; META=Ld.meta;
+  const dec=s=>{ const bin=atob(s), u=new Uint8Array(bin.length); for(let i=0;i<bin.length;i++) u[i]=bin.charCodeAt(i); return new Uint16Array(u.buffer); };
+  const mats={skin:new T.MeshStandardMaterial({color:0xc79775,roughness:.88,side:T.DoubleSide}),
+    bone:new T.MeshStandardMaterial({color:0xd6c49c,roughness:.8,side:T.DoubleSide}),cart:new T.MeshStandardMaterial({color:0xa9c9d6,roughness:.4,side:T.DoubleSide})};
+  const mus={}, tint=[0xab463d,0xa23f37,0xb24d43,0x9b3b34];
+  Ld.parts.forEach(pt=>{ const q=dec(pt.p), pos=new Float32Array(q.length); for(let i=0;i<q.length;i++) pos[i]=pt.mn[i%3]+q[i]*pt.sc;
+    const g=new T.BufferGeometry(); g.setAttribute('position',new T.BufferAttribute(pos,3)); g.setIndex(new T.BufferAttribute(dec(pt.i),1)); g.computeVertexNormals(); g.computeBoundingBox();
+    let m=mats[pt.k]; if(pt.k==='mus'){ if(!mus[pt.g]) mus[pt.g]=new T.MeshStandardMaterial({color:tint[Object.keys(mus).length%4],roughness:.58,side:T.DoubleSide}); m=mus[pt.g]; }
+    const mesh=new T.Mesh(g,m); mesh.userData.real=pt.k; mesh.userData.g=pt.g; mesh.visible=false; real.add(mesh); realMeshes.push(mesh); });
+})();
+function regionAt(p){ const a=META.axis, ac=META.ac, s=p.x*a[0]+p.y*a[1]+p.z*a[2];
+  const rz=p.z-s*a[2], r=Math.hypot(p.x-s*a[0],p.y-s*a[1],rz);
+  if(Math.hypot(p.x-ac[0],p.y-ac[1],p.z-ac[2])<2.6&&p.y>ac[1]-.8) return 'A';
+  if(s>5&&r<5.8){ if(rz>.5*r) return s<10?'C':'E'; if(rz<-.5*r) return s<9?'D':'E'; return 'E'; }
+  if(s<=5&&p.length()<9.5&&p.x>-4){ if(p.y>2.2&&Math.abs(p.z)<3) return 'B'; if(p.z>1.8) return 'C'; if(p.z<-1.8) return 'D'; return p.y>0?'B':'E'; }
+  if(p.y>ac[1]-1) return 'F';
+  return p.z<META.zmid?'F':'H'; }
+
 /* ---------- pain markers ---------- */
 function radialTex(ring){
   const c=document.createElement('canvas'); c.width=c.height=128; const g=c.getContext('2d');
@@ -577,8 +611,8 @@ const TEAR_TXT=[
 
 /* ---------- state ---------- */
 const reduce=window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches;
-const S={showCond:null,showNote:'',tear:1,sel:0,sc:0,p:.55,dir:1,playing:false,hold:0,slow:false,labels:true,sites:true,spin:false};
-const view={az:rad(-28),pol:rad(74),rad:50,gaz:rad(-28),gpol:rad(74),target:V(-2.2,-2.6,0),anim:false,zoom:1};
+const S={layer:2,showCond:null,showNote:'',tear:1,sel:0,sc:0,p:.55,dir:1,playing:false,hold:0,slow:false,labels:true,sites:true,spin:false};
+const view={az:rad(-28),pol:rad(74),rad:50,gaz:rad(-28),gpol:rad(74),target:V(-2.2,-2.6,0),gtarget:V(-2.2,-2.6,0),lscale:1,gscale:1,anim:false,zoom:1};
 
 /* ---------- pose ---------- */
 const qE=new T.Quaternion(),qR=new T.Quaternion(),ax=V(),Yax=V(0,1,0),dir=V();
@@ -636,20 +670,30 @@ const LABS=[
  {t:'Front tendon',f:()=>MUS[3].sw.C[mi].clone()},
  {t:'Tear',f:()=>painPos.clone(),tear:true}
 ];
+if(META){
+  const ML={deltoid:'Shoulder muscle (deltoid)',pec:'Chest muscle',trap:'Upper back muscle (trapezius)',lat:'Broad back muscle',biceps:'Biceps',triceps:'Triceps',infra:'Back cuff muscle'};
+  for(const k in ML){ const p=META.lab[k]; if(p) LABS.push({t:ML[k],layer:1,f:(v=>()=>v.clone())(V(p[0],p[1],p[2]))}); }
+  const skin=realMeshes.find(m=>m.userData.real==='skin'), ctr=g=>{ const m=realMeshes.find(x=>x.userData.g===g); return m.geometry.boundingBox.getCenter(V()); };
+  const skinPt=(target,d)=>{ d.normalize(); const rc=new T.Raycaster(target.clone().addScaledVector(d,40),d.clone().negate(),0,90); const h=rc.intersectObject(skin,false)[0]; return h?h.point:null; };
+  [['Point of the shoulder',V(META.acr[0],META.acr[1],META.acr[2]),V(.5,1,0)],['Collarbone',ctr('clavicle'),V(0,.5,1)],['Front of the shoulder',V(.3,0,0),V(.2,0,1)],
+   ['Outer upper arm',V(META.axis[0],META.axis[1],META.axis[2]).multiplyScalar(11),V(1,0,0)],['Shoulder blade',ctr('scapula'),V(0,0,-1)]]
+   .forEach(a=>{ const p=skinPt(a[1],a[2]); if(p) LABS.push({t:a[0],layer:0,f:()=>p.clone()}); });
+}
 LABS.forEach(l=>{ l.el=document.createElement('div'); l.el.className='lab off'+(l.tear?' tear':''); l.el.textContent=l.t; labHost.appendChild(l.el);
   l.line=document.createElementNS(NSV,'line'); l.dot=document.createElementNS(NSV,'circle'); l.dot.setAttribute('r','2');
   if(l.tear){l.line.setAttribute('class','tear');l.dot.setAttribute('class','tear');}
   svg.appendChild(l.line); svg.appendChild(l.dot); l.vis=false; l.occ=false; l.w=80; l.h=14; l.pos=V(); });
 function measureLabels(){ LABS.forEach(l=>{ l.w=l.el.offsetWidth||80; l.h=l.el.offsetHeight||14; }); }
 const ray=new T.Raycaster(), occluders=[]; let frame=0;
-function collectOccluders(){ occluders.length=0; scene.traverse(o=>{ if(o.isMesh&&o!==bursa&&o!==capsule&&!MUS.some(m=>m.ov.mesh===o)){ if(roofMat.opacity<1&&(o.material===roofMat||o.material===roofSweepMat||o.material===ligMat)) return; occluders.push(o);} }); }
+function collectOccluders(){ occluders.length=0; if(S.layer<2){ realMeshes.forEach(m=>{ if(m.visible) occluders.push(m); }); return; }
+  scene.traverse(o=>{ if(o.isMesh&&!o.userData.real&&o!==bursa&&o!==capsule&&!MUS.some(m=>m.ov.mesh===o)){ if(roofMat.opacity<1&&(o.material===roofMat||o.material===roofSweepMat||o.material===ligMat)) return; occluders.push(o);} }); }
 const _v=V(),_d=V();
 function updLabels(W,Hh){
   frame++;
   const check=(frame%8===1);
   const act=[];
   for(const l of LABS){
-    let on=S.labels&&!(l.bursa&&!bursa.visible)&&!(l.tear&&S.tear===0);
+    let on=S.labels&&(l.layer===undefined?2:l.layer)===S.layer&&!(l.bursa&&!bursa.visible)&&!(l.tear&&S.tear===0);
     if(on){ l.pos.copy(l.f()); _v.copy(l.pos).project(camera); l.sx=(_v.x*.5+.5)*W; l.sy=(-_v.y*.5+.5)*Hh;
       if(_v.z>1||l.sx<-20||l.sx>W+20||l.sy<-20||l.sy>Hh+20) on=false; }
     if(on&&check&&!l.tear){ _d.subVectors(l.pos,camera.position); const dist=_d.length(); ray.set(camera.position,_d.normalize()); ray.far=dist;
@@ -678,7 +722,7 @@ let W=1,Hh=1;
 function resize(){ const r=stage.getBoundingClientRect(); W=Math.max(1,r.width); Hh=Math.max(1,r.height);
   renderer.setSize(W,Hh,false); camera.aspect=W/Hh; camera.updateProjectionMatrix();
   view.rad=44*Math.max(1,.98/camera.aspect); svg.setAttribute('viewBox','0 0 '+W+' '+Hh); measureLabels(); }
-function placeCamera(){ const r=view.rad*view.zoom, sp=Math.sin(view.pol);
+function placeCamera(){ view.target.lerp(view.gtarget,.12); view.lscale=lerp(view.lscale,view.gscale,.12); const r=view.rad*view.zoom*view.lscale, sp=Math.sin(view.pol);
   camera.position.set(view.target.x+r*sp*Math.sin(view.az),view.target.y+r*Math.cos(view.pol),view.target.z+r*sp*Math.cos(view.az));
   camera.lookAt(view.target); camera.updateMatrixWorld(true); }
 const VIEWS={front:[0,80],back:[180,80],side:[90,80],top:[0,8]};
@@ -702,23 +746,31 @@ canvas.addEventListener('wheel',e=>{ e.preventDefault(); view.zoom=clamp(view.zo
 function chips(host,items,get,set){ items.forEach(it=>{ const b=document.createElement('button'); b.type='button'; b.textContent=it.label; b.dataset.v=it.v;
   b.addEventListener('click',()=>{ set(it.v); sync(); }); host.appendChild(b); });
   return ()=>host.querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String(String(get())===b.dataset.v))); }
-const syncT=chips($('#tendonChips'),TEND.map((t,i)=>({label:t.name,v:i})),()=>S.sel,v=>{clearShow();S.sel=+v;});
-const pick=v=>{ S.sc=+v; S.p=0; S.dir=1; S.hold=0; S.playing=true; };
+const syncT=chips($('#tendonChips'),TEND.map((t,i)=>({label:t.name,v:i})),()=>S.sel,v=>{clearShow();setLayer(2);S.sel=+v;});
+const pick=v=>{ setLayer(2); S.sc=+v; S.p=0; S.dir=1; S.hold=0; S.playing=true; };
 const syncA=chips($('#moveA'),SC.map((s,i)=>({label:s.name,v:i,g:s.g})).filter(s=>s.g===0),()=>S.sc,v=>{clearShow();pick(v);});
 const syncB=chips($('#moveB'),SC.map((s,i)=>({label:s.name,v:i,g:s.g})).filter(s=>s.g===1),()=>S.sc,v=>{clearShow();pick(v);});
-$('#tearSeg').querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{ clearShow(); S.tear=+b.dataset.v; sync(); }));
+$('#tearSeg').querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{ clearShow(); setLayer(2); S.tear=+b.dataset.v; sync(); }));
 document.querySelectorAll('.views button').forEach(b=>b.addEventListener('click',()=>goView(b.dataset.view)));
 const playBtn=$('#play'), scrub=$('#scrub');
 const play2=$('#play2');
-const togglePlay=()=>{ S.playing=!S.playing; if(S.playing&&SC[S.sc].g===1&&S.p>=1){S.p=0;} sync(); };
+const togglePlay=()=>{ if(!S.playing) setLayer(2); S.playing=!S.playing; if(S.playing&&SC[S.sc].g===1&&S.p>=1){S.p=0;} sync(); };
 playBtn.addEventListener('click',togglePlay); play2.addEventListener('click',togglePlay);
-scrub.addEventListener('input',()=>{ S.p=scrub.value/1000; S.playing=false; sync(); });
+scrub.addEventListener('input',()=>{ setLayer(2); S.p=scrub.value/1000; S.playing=false; sync(); });
 $('#slow').addEventListener('change',e=>S.slow=e.target.checked);
 $('#optLabels').addEventListener('change',e=>S.labels=e.target.checked);
 $('#optSites').addEventListener('change',e=>S.sites=e.target.checked);
 $('#optSpin').addEventListener('change',e=>{S.spin=e.target.checked; view.anim=false;});
 $('#optBursa').addEventListener('change',e=>bursa.visible=e.target.checked);
 $('#optRoof').addEventListener('change',e=>{ const o=e.target.checked?.22:1; [roofMat,roofSweepMat,ligMat].forEach(m=>{m.opacity=o;m.depthWrite=o===1;}); collectOccluders(); });
+const LAYER_NOTE=['Tap the skin where it hurts.','The outer muscles. The rotator cuff tendons lie underneath them.','The joint itself. Tears and movements are shown on this layer.'];
+function setLayer(l){ if(!META) l=2; S.layer=l;
+  realMeshes.forEach(m=>{ m.visible=m.userData.real==='skin'?l===0:l===1; });
+  view.gtarget.copy(l<2?V(-5,-8,2):V(-2.2,-2.6,0)); view.gscale=l<2?2.05:1;
+  if(l<2) S.playing=false; collectOccluders();
+  $('#layerSeg').querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String(+b.dataset.l===l)));
+  $('#layerNote').textContent=LAYER_NOTE[l]; }
+$('#layerSeg').querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{ setLayer(+b.dataset.l); sync(); }));
 function sync(){
   syncT(); syncA(); syncB();
   $('#tearSeg').querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String(+b.dataset.v===S.tear)));
@@ -746,6 +798,7 @@ const REG={
  D:['Back of the shoulder','The two back tendons attach here.'],
  E:['Outer upper arm','Pain here is often sent down from the tendons under the bony roof, so the cause may sit higher up than the sore spot.'],
  F:['Shoulder blade or towards the neck','Pain here often comes from the neck or the muscles around the blade, not the shoulder joint itself.'],
+ H:['Chest, below the collarbone','Pain here comes from the shoulder joint less often. It can come from the chest muscles, the ribs or the neck.'],
  G:['Deep inside the joint','A deep ache you cannot put a finger on tends to come from the joint itself.']};
 const HEALTHY_NOTE='Shown on a healthy cuff. The pulsing ring marks the part involved.';
 const COND={
@@ -762,7 +815,7 @@ const COND={
  neck:{n:'Pain coming from the neck',m:'Referred pain or a trapped nerve',d:'Pain around the shoulder blade or running down the arm can start in the neck. Clues are pins and needles, pain below the elbow, or pain that changes when you move your neck.',show:{tear:0,view:'back',spot:gAnchor(Bp(-7.8,4.6,0)),note:'The neck is not part of this model. The ring marks the side nearest the neck, where this pain usually starts.'}}
 };
 const BASE={A:{ac:5,imp:2,supra:1.5,neck:1},B:{imp:4,supra:4,calc:2,ac:1.5,frozen:1},C:{bic:4,sub:3,imp:2,supra:1.5,lab:1.5,frozen:1.5,oa:1},
- D:{infra:4,neck:2,oa:1.5,lab:1.5,imp:1.5,frozen:1},E:{supra:4,imp:4,frozen:2,calc:1.5,neck:1.5},F:{neck:5,infra:1,imp:.5,oa:.5},G:{frozen:3,oa:3,lab:2.5,supra:1,imp:1}};
+ D:{infra:4,neck:2,oa:1.5,lab:1.5,imp:1.5,frozen:1},E:{supra:4,imp:4,frozen:2,calc:1.5,neck:1.5},F:{neck:5,infra:1,imp:.5,oa:.5},G:{frozen:3,oa:3,lab:2.5,supra:1,imp:1},H:{neck:2,sub:1.5,ac:1.5,bic:1,imp:.5}};
 const ADJ={
  mv:{side:{imp:2,supra:2,calc:1},fwd:{imp:1.5,bic:1.5,sub:1,supra:1},behind:{sub:1.5,frozen:1.5,infra:1,supra:1,bic:.5},out:{infra:2.5,frozen:1},in:{sub:2.5},across:{ac:3},all:{frozen:4,oa:2.5}},
  start:{injury:{supra:2,infra:1.5,sub:1.5,lab:2,ac:1.5,frozen:-1,oa:-1},gradual:{imp:1.5,oa:1.5,frozen:1,bic:1,supra:1,neck:.5},sudden:{calc:3.5}},
@@ -777,14 +830,14 @@ const QS=[
  {k:'other',multi:true,q:'Anything else?',o:[['pins','Pins and needles or numbness'],['neckmove','Moving my neck changes the pain'],['click','Clicking, catching or it feels loose']]}];
 /* ---------- exercises ---------- */
 const EXS={
- pend:['Pendulum swing','Lean forward with your good hand on a table and let the sore arm hang loose. Swing it gently forward and back, side to side, then in small circles, using your body to start the movement.','About 1 minute, 2 to 3 times a day'],
- slide:['Table slide','Sit at a table with both hands on a cloth. Slide the hands forward by leaning your body in, as far as is comfortable, then slide back.','10 slow repeats, twice a day'],
- stick:['Outward turn with a stick','Tuck both elbows into your sides, bent to a right angle, holding a stick or broom handle. Use the good arm to push the sore hand outward, keeping that elbow tucked in.','10 slow repeats, twice a day'],
- wall:['Wall walk','Face a wall and walk the fingers of the sore arm up it as high as is comfortable. Hold for a few seconds, then walk back down.','5 to 10 repeats, twice a day'],
- blade:['Shoulder blade squeeze','Sit or stand tall. Draw your shoulder blades gently back and down, as if tucking them into your back pockets, without shrugging.','Hold 5 to 10 seconds, 10 repeats, twice a day'],
- isoOut:['Outward push against a wall','Stand side-on to a wall with the sore elbow bent to a right angle and tucked in, a rolled towel under the armpit. Press the back of the hand into the wall, gently, without the arm moving.','Hold 10 seconds, 5 to 10 repeats, once or twice a day'],
- isoIn:['Inward push against a door frame','Stand at a door frame with the sore elbow bent to a right angle and tucked in. Press the palm into the frame, gently, without the arm moving.','Hold 10 seconds, 5 to 10 repeats, once or twice a day'],
- band:['Outward turn with a band','Once the wall pushes are easy: hold a light exercise band in both hands, elbows tucked in. Turn the sore forearm outward against the band, then return slowly.','10 repeats, 2 to 3 sets, every other day'],
+ pend:['Pendulum swing','Lean forward with your good hand on a table and let the sore arm hang loose. Swing it gently forward and back, side to side, then in small circles, using your body to start the movement.','About 1 minute, 2 to 3 times a day','https://www.youtube.com/watch?v=xxgqT6Jn4pc','NHS Ayrshire & Arran video'],
+ slide:['Table slide','Sit at a table with both hands on a cloth. Slide the hands forward by leaning your body in, as far as is comfortable, then slide back.','10 slow repeats, twice a day','https://player.vimeo.com/video/116357138','East Lancashire Hospitals NHS video'],
+ stick:['Outward turn with a stick','Tuck both elbows into your sides, bent to a right angle, holding a stick or broom handle. Use the good arm to push the sore hand outward, keeping that elbow tucked in.','10 slow repeats, twice a day','https://player.vimeo.com/video/116357672','East Lancashire Hospitals NHS video'],
+ wall:['Wall walk','Face a wall and walk the fingers of the sore arm up it as high as is comfortable. Hold for a few seconds, then walk back down.','5 to 10 repeats, twice a day','https://player.vimeo.com/video/116356667','East Lancashire Hospitals NHS video of a wall slide, a similar exercise'],
+ blade:['Shoulder blade squeeze','Sit or stand tall. Draw your shoulder blades gently back and down, as if tucking them into your back pockets, without shrugging.','Hold 5 to 10 seconds, 10 repeats, twice a day','https://www.youtube.com/watch?v=HgwyGIAl4fs','NHS Ayrshire & Arran video'],
+ isoOut:['Outward push against a wall','Stand side-on to a wall with the sore elbow bent to a right angle and tucked in, a rolled towel under the armpit. Press the back of the hand into the wall, gently, without the arm moving.','Hold 10 seconds, 5 to 10 repeats, once or twice a day','https://www.youtube.com/watch?v=WgmuiAS3SO8','NHS Ayrshire & Arran video'],
+ isoIn:['Inward push against a door frame','Stand at a door frame with the sore elbow bent to a right angle and tucked in. Press the palm into the frame, gently, without the arm moving.','Hold 10 seconds, 5 to 10 repeats, once or twice a day','https://www.youtube.com/watch?v=PW1C_EbHm0c','NHS Ayrshire & Arran video'],
+ band:['Outward turn with a band','Once the wall pushes are easy: hold a light exercise band in both hands, elbows tucked in. Turn the sore forearm outward against the band, then return slowly.','10 repeats, 2 to 3 sets, every other day','https://player.vimeo.com/video/116357669','East Lancashire Hospitals NHS video'],
  curl:['Gentle biceps hold','Sit with the sore elbow bent to a right angle, palm up, under a table edge. Press up lightly into the table without moving.','Hold 10 seconds, 5 repeats, once a day'],
  neckT:['Chin tuck and neck turns','Sit tall. Draw your chin straight back to make a double chin and hold 5 seconds. Then turn your head slowly to each side as far as is comfortable.','10 of each, 2 to 3 times a day']};
 const PLAN={
@@ -804,7 +857,9 @@ function planEl(id,open){ const pl=PLAN[id], d=document.createElement('details')
   const lead=document.createElement('p'); lead.textContent=pl.lead; d.appendChild(lead);
   const ul=document.createElement('ul'); pl.ex.forEach(k=>{ const e=EXS[k], li=document.createElement('li');
     const b=document.createElement('strong'); b.textContent=e[0]; li.appendChild(b); li.appendChild(document.createTextNode(' '+e[1]+' '));
-    const ds=document.createElement('em'); ds.textContent=e[2]+'.'; li.appendChild(ds); ul.appendChild(li); }); d.appendChild(ul);
+    const ds=document.createElement('em'); ds.textContent=e[2]+'.'; li.appendChild(ds);
+    if(e[3]){ const a=document.createElement('a'); a.className='vid'; a.href=e[3]; a.target='_blank'; a.rel='noopener'; a.textContent='▶ Watch: '+e[4]; li.appendChild(a); }
+    ul.appendChild(li); }); d.appendChild(ul);
   const av=document.createElement('p'); const s=document.createElement('strong'); s.textContent='Go easy on: '; av.appendChild(s); av.appendChild(document.createTextNode(pl.avoid)); d.appendChild(av);
   return d; }
 const F={region:null,mv:new Set(),start:null,night:null,str:null,other:new Set()};
@@ -839,13 +894,15 @@ QS.forEach(q=>{ const d=document.createElement('div'); d.className='q'; const s=
   $('#fQs').appendChild(d); });
 function clearFinder(){ F.region=null; F.mv.clear(); F.other.clear(); F.start=F.night=F.str=null; pin.visible=false; clearShow(); renderFinder(); }
 $('#fClear').addEventListener('click',()=>{ clearFinder(); sync(); });
-$('#reset').addEventListener('click',()=>{ clearFinder(); S.tear=1; S.sel=0; pick(0); S.p=.55; S.playing=false; sync(); });
+$('#reset').addEventListener('click',()=>{ clearFinder(); S.tear=1; S.sel=0; pick(0); S.p=.55; S.playing=false; setLayer(0); sync(); });
 function showCond(id){ const c=COND[id].show; clearShow(); S.showCond=id; S.showNote=c.note||''; spotFn=c.spot||null;
   if(c.sel!=null) S.sel=c.sel; S.tear=c.tear; if(c.sc!=null) pick(c.sc); if(c.view) goView(c.view); sync();
   stage.scrollIntoView({block:'start',behavior:reduce?'auto':'smooth'}); }
 const tray=new T.Raycaster(), ndc=new T.Vector2();
 function tapAt(cx,cy){
   const r=canvas.getBoundingClientRect(); ndc.set((cx-r.left)/r.width*2-1,-((cy-r.top)/r.height)*2+1); tray.setFromCamera(ndc,camera);
+  if(S.layer<2){ const hr=tray.intersectObjects(realMeshes.filter(m=>m.visible),false)[0]; if(!hr) return;
+    scene.add(pin); pin.position.copy(hr.point); pin.visible=true; F.region=regionAt(hr.point); renderFinder(); return; }
   const list=[]; scene.traverse(o=>{ if(o.isMesh&&o.userData.reg&&o.visible&&!(roofMat.opacity<1&&(o.material===roofMat||o.material===roofSweepMat||o.material===ligMat))) list.push(o); });
   const h=tray.intersectObjects(list,false)[0]; if(!h) return;
   const rg=typeof h.object.userData.reg==='function'?h.object.userData.reg(h):h.object.userData.reg; if(!rg) return;
@@ -868,12 +925,16 @@ function tick(now){
   }
   if(S.spin) view.az+=dt*.35;
   if(view.anim){ view.az=lerp(view.az,view.gaz,.14); view.pol=lerp(view.pol,view.gpol,.14); if(Math.abs(view.az-view.gaz)+Math.abs(view.pol-view.gpol)<.002) view.anim=false; }
-  placeCamera(); applyPose(time); hud(); updLabels(W,Hh);
+  placeCamera(); applyPose(time);
+  const mine=S.layer===2; girdle.visible=hum.visible=clav.mesh.visible=bic.sw.mesh.visible=mine;
+  MUS.forEach(m=>{ m.sw.mesh.visible=mine; if(!mine) m.ov.mesh.visible=false; });
+  if(!mine){ glow.visible=false; rings.forEach(r=>{r.visible=false;}); spot.visible=false; }
+  hud(); updLabels(W,Hh);
   renderer.render(scene,camera);
   requestAnimationFrame(tick);
 }
 if(window.ResizeObserver) new ResizeObserver(resize).observe(stage); else window.addEventListener('resize',resize);
-resize(); collectOccluders(); sync(); renderFinder();
+resize(); if(!META) $('#layerBar').hidden=true; setLayer(0); sync(); renderFinder();
 if(document.fonts&&document.fonts.ready) document.fonts.ready.then(measureLabels);
 window.shoulder={S,view,goView,sync};
 requestAnimationFrame(tick);
