@@ -40,6 +40,15 @@ header p{margin:2px 0 0;color:var(--muted);font-size:14px;max-width:65ch}
 .layerbar{display:grid;gap:4px}
 .layerbar p{margin:0;font-size:13px;color:var(--muted)}
 .seg.plain button[aria-pressed="true"]{background:var(--accent)}
+.seg.four{grid-template-columns:repeat(4,1fr)}
+.tour{background:var(--accent-soft);border:1px solid #b9d8de;border-radius:8px;padding:10px 14px}
+.tour strong{font:600 14px var(--f-label);display:block}
+.tour p{margin:3px 0 8px;max-width:65ch}
+.tour .tb{display:flex;gap:8px;flex-wrap:wrap}
+.tour button{font:500 13px var(--f-body);padding:8px 14px;border-radius:999px;border:1px solid var(--accent);background:var(--accent);color:#fff;cursor:pointer}
+.tour button.sec{background:#fff;color:var(--accent)}
+.stagectl #zoomBtn{background:rgba(255,255,255,.92);color:var(--ink);border-color:var(--line)}
+@media (max-width:560px){ .hint{display:none} }
 .finder a.vid{display:inline-block;font-size:13px;font-weight:500;color:var(--accent);margin-top:2px}
 .stage{position:relative;height:min(60vh,560px);min-height:340px;border:1px solid var(--line);border-radius:10px;overflow:hidden;
   background:radial-gradient(120% 90% at 50% 40%, #f4f8f9 0%, #e4ecef 55%, #cfdbe0 100%)}
@@ -149,10 +158,11 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
 
   <div class="left">
     <div class="layerbar" id="layerBar">
-      <div class="seg plain" id="layerSeg">
+      <div class="seg plain four" id="layerSeg">
         <button type="button" data-l="0">Skin</button>
         <button type="button" data-l="1">Muscles</button>
-        <button type="button" data-l="2">Bones and tendons</button>
+        <button type="button" data-l="2">Bones</button>
+        <button type="button" data-l="3">Diagram</button>
       </div>
       <p id="layerNote"></p>
     </div>
@@ -169,9 +179,20 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
       <div class="stagectl">
         <button type="button" id="play2" aria-label="Pause">❚❚</button>
         <button type="button" id="reset">Reset</button>
+        <button type="button" id="zoomBtn">Zoom to joint</button>
       </div>
       <div class="hint">Tap where it hurts · drag to turn</div>
       <div id="nogl" hidden>This device could not start the 3D view. Try another browser or device.</div>
+    </section>
+
+    <section class="tour" id="tour" aria-live="polite">
+      <strong id="tourStep">New to this? Take the 5-step tour.</strong>
+      <p id="tourText">It peels the shoulder back one layer at a time and shows why a torn tendon hurts.</p>
+      <div class="tb">
+        <button type="button" class="sec" id="tourBack" hidden>Back</button>
+        <button type="button" id="tourNext">Start the tour</button>
+        <button type="button" class="sec" id="tourEnd" hidden>End tour</button>
+      </div>
     </section>
 
     <section class="finder" id="finder" aria-live="polite">
@@ -237,6 +258,8 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
       <h3>View options</h3>
       <div class="checks">
         <label><input type="checkbox" id="optLabels" checked> Show labels</label>
+        <label><input type="checkbox" id="optAll"> Show every label, not just the main ones</label>
+        <label><input type="checkbox" id="optGhost" checked> Show a faint outline of the body around the muscles and bones</label>
         <label><input type="checkbox" id="optSites" checked> Show in red every place a tear can happen</label>
         <label><input type="checkbox" id="optRoof"> Make the bony roof and collarbone see-through</label>
         <label><input type="checkbox" id="optBursa" checked> Show the cushion sac (bursa)</label>
@@ -309,7 +332,7 @@ const muscleMat=new T.MeshStandardMaterial({vertexColors:true,map:fibreTex(),rou
 const bursaMat=new T.MeshStandardMaterial({color:0x79b4dc,roughness:.25,transparent:true,opacity:.62,depthWrite:false});
 
 /* ---------- real anatomy layers (skin, outer muscles) from BodyParts3D ---------- */
-const real=new T.Group(); scene.add(real); const realMeshes=[], REALG={}; let META=null;
+const real=new T.Group(); scene.add(real); const realMeshes=[], REALG={}, DEF=[], musMats=[]; let META=null, skinMat=null;
 (function(){ const Ld=window.SHOULDER_LAYERS; if(!Ld) return; META=Ld.meta;
   const dec=s=>{ const bin=atob(s), u=new Uint8Array(bin.length); for(let i=0;i<bin.length;i++) u[i]=bin.charCodeAt(i); return new Uint16Array(u.buffer); };
   const mats={skin:new T.MeshStandardMaterial({color:0xc79775,roughness:.88,side:T.DoubleSide}),
@@ -321,7 +344,14 @@ const real=new T.Group(); scene.add(real); const realMeshes=[], REALG={}; let ME
     const sub=ix=>{ const q2=new T.BufferGeometry(); q2.setAttribute('position',g.attributes.position); q2.setAttribute('normal',g.attributes.normal); q2.setIndex(new T.BufferAttribute(ix,1)); q2.computeBoundingSphere(); return q2; };
     if(pt.i2){ REALG.scapBody=sub(idx); REALG.scapRoof=sub(dec(pt.i2)); } else if(pt.g==='humerus'||pt.g==='clavicle') REALG[pt.g]=g;
     let m=mats[pt.k]; if(pt.k==='mus'){ if(!mus[pt.g]) mus[pt.g]=new T.MeshStandardMaterial({color:tint[Object.keys(mus).length%4],roughness:.58,side:T.DoubleSide}); m=mus[pt.g]; }
-    const mesh=new T.Mesh(g,m); mesh.userData.real=pt.k; mesh.userData.g=pt.g; mesh.visible=false; real.add(mesh); realMeshes.push(mesh); });
+    const mesh=new T.Mesh(g,m); mesh.userData.real=pt.k; mesh.userData.g=pt.g; mesh.visible=false; real.add(mesh); realMeshes.push(mesh);
+    if(pt.g==='scapula'||pt.g==='humerus'||pt.g==='clavicle') mesh.userData.dup=true;
+    if(pt.wa){ const b8=s=>{ const bin=atob(s), u=new Uint8Array(bin.length); for(let i=0;i<bin.length;i++) u[i]=bin.charCodeAt(i); return u; };
+      DEF.push({mesh,kind:pt.k,P0:pos.slice(),N0:g.attributes.normal.array.slice(),wa:b8(pt.wa),wg:b8(pt.wg),key:''});
+      g.boundingSphere=new T.Sphere(V(0,-8,0),80); mesh.frustumCulled=false; if(pt.k==='skin') mesh.renderOrder=50;
+      if(pt.iseam){ const gs=new T.BufferGeometry(); gs.setAttribute('position',g.attributes.position); gs.setAttribute('normal',g.attributes.normal); gs.setIndex(new T.BufferAttribute(dec(pt.iseam),1));
+        gs.boundingSphere=g.boundingSphere; const ms=new T.Mesh(gs,m); ms.userData.real='skin'; ms.userData.seam=true; ms.userData.g=pt.g; ms.frustumCulled=false; ms.renderOrder=50; ms.visible=false; real.add(ms); realMeshes.push(ms); } } });
+  skinMat=mats.skin; for(const k in mus) musMats.push(mus[k]);
 })();
 function regionAt(p){ const a=META.axis, ac=META.ac, s=p.x*a[0]+p.y*a[1]+p.z*a[2];
   const rz=p.z-s*a[2], r=Math.hypot(p.x-s*a[0],p.y-s*a[1],rz);
@@ -458,20 +488,23 @@ blob(1.85,1.7,1.85,boneMat,V(.65,-.7,0),.03,hum);          // neck
 function humReg(h){ const p=hum.worldToLocal(h.point.clone());
   if(p.y<-2.2) return 'E'; if(p.y>1.5) return 'B'; if(p.z>1.1) return 'C'; if(p.z<-1.1) return 'D'; return p.x>.8?'E':'G'; }
 hum.children.forEach(c=>c.userData.reg=humReg);
+const CFG={bursa:{},ac:{}}; let DIA=!META;
+const snap=o=>({p:o.position.clone(),q:o.quaternion.clone(),s:o.scale.clone()}), put=(o,t)=>{ o.position.copy(t.p); o.quaternion.copy(t.q); o.scale.copy(t.s); };
+CFG.bursa.D=snap(bursa); CFG.ac.D=snap(acJoint);
 if(META){
-  const keep=[bursa,acJoint,caLig.mesh];
-  [girdle,hum].forEach(gr=>gr.traverse(o=>{ if(o.isMesh&&keep.indexOf(o)<0){ o.visible=false; o.userData.off=true; delete o.userData.reg; } }));
-  clav.mesh.visible=false; clav.mesh.userData.off=true; delete clav.mesh.userData.reg;
+  const keep=[bursa,acJoint];
+  [girdle,hum].forEach(gr=>gr.traverse(o=>{ if(o.isMesh&&keep.indexOf(o)<0) o.userData.set='D'; }));
+  clav.mesh.userData.set='D';
   const rBone=new T.MeshStandardMaterial({color:0xd6c49c,roughness:.8,side:T.DoubleSide});
-  const add=(geo,mat,par,fr)=>{ const m=new T.Mesh(geo,mat); m.frustumCulled=false; par.add(m); m.userData.reg=h=>regionAt(fr?fr.worldToLocal(h.point.clone()):h.point); return m; };
+  const add=(geo,mat,par,fr)=>{ const m=new T.Mesh(geo,mat); m.frustumCulled=false; m.userData.set='R'; par.add(m); m.userData.reg=h=>regionAt(fr?fr.worldToLocal(h.point.clone()):h.point); return m; };
   add(REALG.scapBody,rBone,girdle,girdle); add(REALG.scapRoof,roofSweepMat,girdle,girdle); add(REALG.humerus,rBone,hum,hum);
   clavG=new T.Group(); clavG.position.copy(lmv('clavS')); scene.add(clavG);
   add(REALG.clavicle,roofSweepMat,clavG,null).position.copy(clavG.position).negate();
   const under=lmv('acrUnder'), ud=under.clone().normalize();
-  bursa.position.copy(ud).multiplyScalar(under.length()-.1); bursa.quaternion.setFromUnitVectors(V(0,1,0),ud); bursa.scale.set(.78,.55,.78);
-  acJoint.position.copy(lmv('clavL')).add(V(.3,-.05,.05)); acJoint.scale.setScalar(.8);
+  CFG.bursa.R={p:ud.clone().multiplyScalar(under.length()-.1),q:new T.Quaternion().setFromUnitVectors(V(0,1,0),ud),s:V(.78,.55,.78)};
+  CFG.ac.R={p:lmv('clavL').add(V(.3,-.05,.05)),q:new T.Quaternion(),s:V(.8,.8,.8)};
   const c0=lmv('cor'), c1=lmv('acrFront'), cm=c0.clone().add(c1).multiplyScalar(.5); if(cm.length()<3.6) cm.setLength(3.6);
-  updSweep(caLig,[c0,cm,c1],{prof:(t,d,o)=>{o[0]=.45;o[1]=.07;},up:upY});
+  const caR=staticSweep([c0,cm,c1],(t,d,o)=>{o[0]=.45;o[1]=.07;},upY,ligMat,14,10); caR.mesh.userData.set='R'; caR.mesh.userData.reg='C';
 }
 const capsule=new T.Mesh(new T.SphereGeometry(2.66,36,24),new T.MeshStandardMaterial({color:0xe04a4a,transparent:true,opacity:.42,depthWrite:false,roughness:.4}));
 capsule.visible=false; capsule.renderOrder=4; hum.add(capsule);
@@ -487,9 +520,9 @@ const MUS=[
   {pts:[G(Bp(-3.9,-6.5,-.5)),G(Bp(-2.4,-4.0,-.75)),G(V(-2.0,-1.5,-2.2)),H(V(1.65,-.3,-1.72))],up:POST,aB:.85,bB:.52,aT:.55,bT:.22,rep:4},
   {pts:[G(Bp(-6.2,-2.5,.55)),G(Bp(-3.8,-1.3,.85)),G(Bp(-1.2,-.3,1.0)),G(V(-2.35,0,1.85)),H(V(.85,-.1,2.55))],up:ANT,aB:2.6,bB:.78,aT:1.2,bT:.28,rep:9}
 ];
-const WRAP_R=META?2.2:2.4;
-if(META) META.cuff.forEach((c,i)=>{ const m=MUS[i]; const gp=c.g.length>3?[c.g[0],c.g[c.g.length>>1],c.g[c.g.length-1]]:c.g; m.pts=gp.map(p=>G(V(p[0],p[1],p[2]))).concat([H(V(c.h[0],c.h[1],c.h[2]))]);
-  m.up=V(c.up[0],c.up[1],c.up[2]); m.aB=Math.min(c.aB,3.0); m.bB=Math.min(c.bB,.95); m.aT=Math.min(c.aT,1.1); });
+MUS.forEach(m=>{ m.cfg={D:{pts:m.pts,up:m.up,aB:m.aB,bB:m.bB,aT:m.aT}}; });
+if(META) META.cuff.forEach((c,i)=>{ const gp=c.g.length>3?[c.g[0],c.g[c.g.length>>1],c.g[c.g.length-1]]:c.g;
+  MUS[i].cfg.R={pts:gp.map(p=>G(V(p[0],p[1],p[2]))).concat([H(V(c.h[0],c.h[1],c.h[2]))]),up:V(c.up[0],c.up[1],c.up[2]),aB:Math.min(c.aB,3.0),bB:Math.min(c.bB,.95),aT:Math.min(c.aT,1.1)}; });
 const mCol={d:[.62,.25,.22],l:[.80,.40,.35],t:[.95,.92,.84]};
 const NS=76, NR=26;
 MUS.forEach((m,i)=>{
@@ -497,7 +530,7 @@ MUS.forEach((m,i)=>{
   m.tearMat=new T.MeshStandardMaterial({color:0xe3141f,emissive:0xd00010,emissiveIntensity:.3,roughness:.5,side:T.DoubleSide,transparent:true,opacity:.5});
   m.ov=mkSweep(NS,NR,m.tearMat,scene); m.ov.mesh.renderOrder=2;
   m.mode=0; m.world=m.pts.map(()=>V());
-  m.wrap={c:hum.position,R:WRAP_R,b:m.bT};
+  m.wrap={c:hum.position,R:2.4,b:m.bT};
   m.prof=(t,d,o)=>{
     const belly=sst(0,.18,t)*(1-sst(.5,.86,t));
     let a=lerp(m.aT,m.aB,1-sst(.45,.9,t))*(.7+.3*sst(0,.15,t));
@@ -520,11 +553,11 @@ MUS.forEach((m,i)=>{
 });
 // biceps tendon (for orientation)
 const bic={pts:[G(V(-2.45,2.05,.05)),H(V(1.6,1.5,1.72)),H(V(2.0,-1.0,2.0)),H(V(1.8,-4,1.5)),H(V(1.6,-8,1.38)),H(V(1.5,-12.6,1.45))]};
-if(META) bic.pts=[G(V(META.bic.g[0],META.bic.g[1],META.bic.g[2]))].concat(META.bic.h.map(p=>H(V(p[0],p[1],p[2]))));
+bic.cfg={D:{pts:bic.pts}}; if(META) bic.cfg.R={pts:[G(V(META.bic.g[0],META.bic.g[1],META.bic.g[2]))].concat(META.bic.h.map(p=>H(V(p[0],p[1],p[2]))))};
 bic.sw=mkSweep(60,14,muscleMat,scene); bic.sw.mesh.userData.reg='C'; bic.world=bic.pts.map(()=>V());
 bic.o={prof:(t,d,o)=>{ const r=lerp(.24,.85,sst(.5,.8,t))*(1-.75*sst(.93,1,t)); o[0]=r; o[1]=r*.9; },
   up:(t,o)=>o.set(0,0,1), color:(t,d,o)=>{ const tf=1-sst(.42,.62,t); for(let q=0;q<3;q++) o[q]=lerp(lerp(mCol.d[q],mCol.l[q],.5),mCol.t[q],tf); },
-  wrap:{c:hum.position,R:WRAP_R-.04,b:.2},k:1,rep:3};
+  wrap:{c:hum.position,R:2.36,b:.2},k:1,rep:3};
 
 function resolve(m){ for(let i=0;i<m.pts.length;i++){ const q=m.pts[i]; m.world[i].copy(q.p).applyMatrix4(q.f==='g'?girdle.matrixWorld:hum.matrixWorld); } return m.world; }
 
@@ -639,13 +672,18 @@ const TEAR_TXT=[
 
 /* ---------- state ---------- */
 const reduce=window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches;
-const S={ribs:false,layer:2,showCond:null,showNote:'',tear:1,sel:0,sc:0,p:.55,dir:1,playing:false,hold:0,slow:false,labels:true,sites:true,spin:false};
+const S={bursa:true,ghost:true,allLabels:false,zoomJoint:false,aSkin:0,aMus:0,tourKeys:null,ribs:false,layer:2,showCond:null,showNote:'',tear:1,sel:0,sc:0,p:0,dir:1,playing:false,hold:0,slow:false,labels:true,sites:true,spin:false};
 const view={az:rad(-28),pol:rad(74),rad:50,gaz:rad(-28),gpol:rad(74),target:V(-2.2,-2.6,0),gtarget:V(-2.2,-2.6,0),lscale:1,gscale:1,anim:false,zoom:1};
 
 /* ---------- pose ---------- */
-const SHAFT=META?V(META.axis[0],META.axis[1],META.axis[2]).normalize():V(0,-1,0);
+const SHAFT=V(0,-1,0);
+function applyCfg(dia){ DIA=dia; const k=dia?'D':'R';
+  MUS.forEach(m=>{ const c=m.cfg[k]; m.pts=c.pts; m.up=c.up; m.aB=c.aB; m.bB=c.bB; m.aT=c.aT; m.world=m.pts.map(()=>V()); m.wrap.R=dia?2.4:2.2; });
+  bic.pts=bic.cfg[k].pts; bic.world=bic.pts.map(()=>V()); bic.o.wrap.R=dia?2.36:2.16;
+  put(bursa,CFG.bursa[k]); put(acJoint,CFG.ac[k]);
+  if(dia) SHAFT.set(0,-1,0); else SHAFT.set(META.axis[0],META.axis[1],META.axis[2]).normalize(); Yax.copy(SHAFT).negate(); }
 const qE=new T.Quaternion(),qR=new T.Quaternion(),ax=V(),Yax=SHAFT.clone().negate(),dir=V();
-let curElev=0,curPain=0,curPinch=0;
+let curElev=0,curPain=0,curPinch=0,atRest=true;
 function applyPose(time){
   const sc=SC[S.sc], P=sc.pose(S.p);
   ax.set(-Math.sin(rad(P.plane)),0,Math.cos(rad(P.plane)));
@@ -662,7 +700,7 @@ function applyPose(time){
     if(show){ updSweep(m.ov,w,m.oo); m.tearMat.opacity=actual?1:.62; m.tearMat.depthWrite=actual;
       m.tearMat.emissiveIntensity=actual?.45+.35*Math.sin(time*5):.22; } });
   updSweep(bic.sw,resolve(bic),bic.o);
-  curElev=P.elev;
+  curElev=P.elev; atRest=Math.abs(P.elev)<1&&Math.abs(P.rot)<1&&!P.pull&&!P.lift;
   const tf=[0,.8,1][S.tear];
   curPain=clamp(sc.mech(S.p,S.sel)*tf,0,1);
   curPinch=clamp(sc.pinch(S.p)*tf*(S.sel===0?1:.4),0,1);
@@ -684,29 +722,29 @@ const labHost=$('#labels'), svg=$('#leaders'), NSV='http://www.w3.org/2000/svg';
 const gAnchor=p=>()=>p.clone().applyMatrix4(girdle.matrixWorld), hAnchor=p=>()=>p.clone().applyMatrix4(hum.matrixWorld);
 const mi=Math.round(.56*NS);
 const LABS=[
- {t:'Collarbone',f:()=>clavG?clavG.localToWorld(lmv('clavMid').sub(clavG.position)):clav.C[15].clone()},
- {t:'Bony roof',f:gAnchor(META?lmv('acrTop'):V(1.7,4.15,-.3))},
- {t:'Shoulder blade',f:gAnchor(META?lmv('blade'):Bp(-4.6,-6.2,0))},
- {t:'Hook of bone',f:gAnchor(META?lmv('cor'):V(-1.6,2.75,2.9))},
- {t:'Cushion sac',f:META?()=>bursa.getWorldPosition(V()):gAnchor(V(2.5,3.25,.3)),bursa:true},
- {t:'Collarbone joint',f:gAnchor(META?lmv('clavL').add(V(.3,.2,0)):V(-.8,4.5,.4))},
- {t:'Ball of the joint',f:hAnchor(META?V(-.6,.2,2.2):V(-.9,.6,2.0))},
- {t:'Arm bone',f:hAnchor(META?lmv('shaft'):V(.9,-8.5,1.1))},
+ {t:'Collarbone',f:()=>clavG.localToWorld(lmv('clavMid').sub(clavG.position)),fd:()=>clav.C[15].clone()},
+ {t:'Bony roof',f:META&&gAnchor(lmv('acrTop')),fd:gAnchor(V(1.7,4.15,-.3)),key:true},
+ {t:'Shoulder blade',f:META&&gAnchor(lmv('blade')),fd:gAnchor(Bp(-4.6,-6.2,0)),key:true},
+ {t:'Hook of bone',f:META&&gAnchor(lmv('cor')),fd:gAnchor(V(-1.6,2.75,2.9))},
+ {t:'Cushion sac',f:()=>bursa.getWorldPosition(V()),fd:gAnchor(V(2.5,3.25,.3)),bursa:true},
+ {t:'Collarbone joint',f:META&&gAnchor(lmv('clavL').add(V(.3,.2,0))),fd:gAnchor(V(-.8,4.5,.4))},
+ {t:'Ball of the joint',f:hAnchor(V(-.6,.2,2.2)),fd:hAnchor(V(-.9,.6,2.0))},
+ {t:'Arm bone',f:META&&hAnchor(lmv('shaft')),fd:hAnchor(V(.9,-8.5,1.1)),key:true},
  {t:'Biceps tendon',f:()=>bic.sw.C[20].clone()},
- {t:'Top tendon',f:()=>MUS[0].sw.C[mi].clone()},
- {t:'Back tendon',f:()=>MUS[1].sw.C[mi].clone()},
+ {t:'Top tendon',f:()=>MUS[0].sw.C[mi].clone(),key:true},
+ {t:'Back tendon',f:()=>MUS[1].sw.C[mi].clone(),key:true},
  {t:'Small back tendon',f:()=>MUS[2].sw.C[mi].clone()},
- {t:'Front tendon',f:()=>MUS[3].sw.C[mi].clone()},
+ {t:'Front tendon',f:()=>MUS[3].sw.C[mi].clone(),key:true},
  {t:'Tear',f:()=>painPos.clone(),tear:true}
 ];
 if(META){
   const ML={deltoid:'Shoulder muscle (deltoid)',pec:'Chest muscle',trap:'Upper back muscle (trapezius)',lat:'Broad back muscle',biceps:'Biceps',triceps:'Triceps',infra:'Back cuff muscle'};
-  for(const k in ML){ const p=META.lab[k]; if(p) LABS.push({t:ML[k],layer:1,f:(v=>()=>v.clone())(V(p[0],p[1],p[2]))}); }
-  const skin=realMeshes.find(m=>m.userData.real==='skin'), ctr=g=>{ const m=realMeshes.find(x=>x.userData.g===g); return m.geometry.boundingBox.getCenter(V()); };
+  for(const k in ML){ const p=META.lab[k]; if(p) LABS.push({t:ML[k],layer:1,key:k==='deltoid'||k==='pec'||k==='biceps'||k==='trap',f:(v=>()=>v.clone())(V(p[0],p[1],p[2]))}); }
+  const skin=realMeshes.find(m=>m.userData.real==='skin'&&!m.userData.seam), ctr=g=>{ const m=realMeshes.find(x=>x.userData.g===g); return m.geometry.boundingBox.getCenter(V()); };
   const skinPt=(target,d)=>{ d.normalize(); const rc=new T.Raycaster(target.clone().addScaledVector(d,40),d.clone().negate(),0,90); const h=rc.intersectObject(skin,false)[0]; return h?h.point:null; };
   [['Point of the shoulder',V(META.acr[0],META.acr[1],META.acr[2]),V(.5,1,0)],['Collarbone',ctr('clavicle'),V(0,.5,1)],['Front of the shoulder',V(.3,0,0),V(.2,0,1)],
    ['Outer upper arm',V(META.axis[0],META.axis[1],META.axis[2]).multiplyScalar(11),V(1,0,0)],['Shoulder blade',ctr('scapula'),V(0,0,-1)]]
-   .forEach(a=>{ const p=skinPt(a[1],a[2]); if(p) LABS.push({t:a[0],layer:0,f:()=>p.clone()}); });
+   .forEach(a=>{ const p=skinPt(a[1],a[2]); if(p) LABS.push({t:a[0],layer:0,key:a[0]!=='Front of the shoulder'&&a[0]!=='Shoulder blade',f:()=>p.clone()}); });
 }
 LABS.forEach(l=>{ l.el=document.createElement('div'); l.el.className='lab off'+(l.tear?' tear':''); l.el.textContent=l.t; labHost.appendChild(l.el);
   l.line=document.createElementNS(NSV,'line'); l.dot=document.createElementNS(NSV,'circle'); l.dot.setAttribute('r','2');
@@ -714,16 +752,26 @@ LABS.forEach(l=>{ l.el=document.createElement('div'); l.el.className='lab off'+(
   svg.appendChild(l.line); svg.appendChild(l.dot); l.vis=false; l.occ=false; l.w=80; l.h=14; l.pos=V(); });
 function measureLabels(){ LABS.forEach(l=>{ l.w=l.el.offsetWidth||80; l.h=l.el.offsetHeight||14; }); }
 const ray=new T.Raycaster(), occluders=[]; let frame=0;
-function collectOccluders(){ occluders.length=0; if(S.layer<2){ realMeshes.forEach(m=>{ if(m.visible) occluders.push(m); }); return; }
-  scene.traverse(o=>{ if(o.isMesh&&!o.userData.real&&!o.userData.off&&o!==bursa&&o!==capsule&&!MUS.some(m=>m.ov.mesh===o)){ if(roofMat.opacity<1&&(o.material===roofMat||o.material===roofSweepMat||o.material===ligMat)) return; occluders.push(o);} }); }
+function layerMeshes(tap){ const L=S.layer, out=[];
+  if(L===0){ realMeshes.forEach(m=>{ if(m.userData.real==='skin'&&(!m.userData.seam||atRest)) out.push(m); }); return out; }
+  const thru=roofMat.opacity<1, skip=o=>thru&&(o.material===roofMat||o.material===roofSweepMat||o.material===ligMat);
+  if(L===1||(L===2&&S.ribs)) realMeshes.forEach(m=>{ const k=m.userData.real; if(m.userData.dup||k==='skin'||(k==='mus'&&L!==1)) return; out.push(m); });
+  [girdle,hum].forEach(gr=>gr.traverse(o=>{ if(!o.isMesh||o===capsule) return;
+    if(o.userData.set){ if((o.userData.set==='D')!==DIA) return; } else if(L<2||!tap||(o===bursa&&!S.bursa)) return;
+    if(!skip(o)) out.push(o); }));
+  if(DIA){ if(!skip(clav.mesh)) out.push(clav.mesh); } else if(clavG) clavG.children.forEach(o=>{ if(!skip(o)) out.push(o); });
+  if(L>=2){ MUS.forEach(m=>out.push(m.sw.mesh)); out.push(bic.sw.mesh); }
+  return out; }
+function collectOccluders(){ occluders.length=0; layerMeshes(false).forEach(o=>occluders.push(o)); }
 const _v=V(),_d=V();
 function updLabels(W,Hh){
   frame++;
   const check=(frame%8===1);
   const act=[];
   for(const l of LABS){
-    let on=S.labels&&(l.layer===undefined?2:l.layer)===S.layer&&!(l.bursa&&!bursa.visible)&&!(l.tear&&S.tear===0);
-    if(on){ l.pos.copy(l.f()); _v.copy(l.pos).project(camera); l.sx=(_v.x*.5+.5)*W; l.sy=(-_v.y*.5+.5)*Hh;
+    const ll=l.layer===undefined?2:l.layer;
+    let on=S.labels&&(ll===S.layer||(ll===2&&S.layer===3))&&(S.tourKeys?S.tourKeys.indexOf(l.t)>=0:(S.allLabels||l.key||l.tear))&&!(l.bursa&&!bursa.visible)&&!(l.tear&&S.tear===0)&&!(ll<2&&!atRest);
+    if(on){ l.pos.copy((DIA&&l.fd?l.fd:l.f)()); _v.copy(l.pos).project(camera); l.sx=(_v.x*.5+.5)*W; l.sy=(-_v.y*.5+.5)*Hh;
       if(_v.z>1||l.sx<-20||l.sx>W+20||l.sy<-20||l.sy>Hh+20) on=false; }
     if(on&&check&&!l.tear){ _d.subVectors(l.pos,camera.position); const dist=_d.length(); ray.set(camera.position,_d.normalize()); ray.far=dist;
       const h=ray.intersectObjects(occluders,false); l.occ=h.length>0&&h[0].distance<dist-1.0; }
@@ -775,32 +823,62 @@ canvas.addEventListener('wheel',e=>{ e.preventDefault(); view.zoom=clamp(view.zo
 function chips(host,items,get,set){ items.forEach(it=>{ const b=document.createElement('button'); b.type='button'; b.textContent=it.label; b.dataset.v=it.v;
   b.addEventListener('click',()=>{ set(it.v); sync(); }); host.appendChild(b); });
   return ()=>host.querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String(String(get())===b.dataset.v))); }
-const syncT=chips($('#tendonChips'),TEND.map((t,i)=>({label:t.name,v:i})),()=>S.sel,v=>{clearShow();setLayer(2);S.sel=+v;});
-const pick=v=>{ setLayer(2); S.sc=+v; S.p=0; S.dir=1; S.hold=0; S.playing=true; };
+const syncT=chips($('#tendonChips'),TEND.map((t,i)=>({label:t.name,v:i})),()=>S.sel,v=>{clearShow();if(S.layer<2)setLayer(2);S.sel=+v;});
+const pick=v=>{ S.sc=+v; S.p=0; S.dir=1; S.hold=0; S.playing=true; };
 const syncA=chips($('#moveA'),SC.map((s,i)=>({label:s.name,v:i,g:s.g})).filter(s=>s.g===0),()=>S.sc,v=>{clearShow();pick(v);});
 const syncB=chips($('#moveB'),SC.map((s,i)=>({label:s.name,v:i,g:s.g})).filter(s=>s.g===1),()=>S.sc,v=>{clearShow();pick(v);});
-$('#tearSeg').querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{ clearShow(); setLayer(2); S.tear=+b.dataset.v; sync(); }));
+$('#tearSeg').querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{ clearShow(); if(S.layer<2) setLayer(2); S.tear=+b.dataset.v; sync(); }));
 document.querySelectorAll('.views button').forEach(b=>b.addEventListener('click',()=>goView(b.dataset.view)));
 const playBtn=$('#play'), scrub=$('#scrub');
 const play2=$('#play2');
-const togglePlay=()=>{ if(!S.playing) setLayer(2); S.playing=!S.playing; if(S.playing&&SC[S.sc].g===1&&S.p>=1){S.p=0;} sync(); };
+const togglePlay=()=>{ S.playing=!S.playing; if(S.playing&&SC[S.sc].g===1&&S.p>=1){S.p=0;} sync(); };
 playBtn.addEventListener('click',togglePlay); play2.addEventListener('click',togglePlay);
-scrub.addEventListener('input',()=>{ setLayer(2); S.p=scrub.value/1000; S.playing=false; sync(); });
+scrub.addEventListener('input',()=>{ S.p=scrub.value/1000; S.playing=false; sync(); });
 $('#slow').addEventListener('change',e=>S.slow=e.target.checked);
 $('#optLabels').addEventListener('change',e=>S.labels=e.target.checked);
 $('#optSites').addEventListener('change',e=>S.sites=e.target.checked);
-$('#optRibs').addEventListener('change',e=>{ S.ribs=e.target.checked; setLayer(S.ribs?2:S.layer); });
+$('#optRibs').addEventListener('change',e=>{ S.ribs=e.target.checked; setLayer(S.ribs&&S.layer!==1?2:S.layer); });
 $('#optSpin').addEventListener('change',e=>{S.spin=e.target.checked; view.anim=false;});
-$('#optBursa').addEventListener('change',e=>bursa.visible=e.target.checked);
+$('#optBursa').addEventListener('change',e=>S.bursa=e.target.checked);
+$('#optAll').addEventListener('change',e=>S.allLabels=e.target.checked);
+$('#optGhost').addEventListener('change',e=>S.ghost=e.target.checked);
 $('#optRoof').addEventListener('change',e=>{ const o=e.target.checked?.22:1; [roofMat,roofSweepMat,ligMat].forEach(m=>{m.opacity=o;m.depthWrite=o===1;}); collectOccluders(); });
-const LAYER_NOTE=['Tap the skin where it hurts.','The outer muscles. The rotator cuff tendons lie underneath them.','The joint itself. Tears and movements are shown on this layer.'];
-function setLayer(l){ if(!META) l=2; S.layer=l;
-  realMeshes.forEach(m=>{ const k=m.userData.real, g=m.userData.g; m.visible=k==='skin'?l===0:(l===1||(l===2&&S.ribs&&(g==='rib'||g==='sternum'||g==='cartilage'))); });
-  view.gtarget.copy(l<2?V(-5,-8,2):(META?V(-3,-4,-2):V(-2.2,-2.6,0))); view.gscale=l<2?2.05:(META?1.15:1);
-  if(l<2) S.playing=false; collectOccluders();
+const LAYER_NOTE=['Tap the skin where it hurts.','The outer muscles. The rotator cuff tendons lie underneath them.','The real bones with the four cuff tendons. Tears are shown from this layer inwards.','A simplified, spread-out drawing of the same joint. It shows how the parts work more clearly than the real shapes.'];
+let cfgInit=false;
+function frameCam(){ const L=S.layer;
+  if(L===3){ view.gtarget.set(-2.2,-2.6,0); view.gscale=1; }
+  else if(S.zoomJoint){ view.gtarget.set(-2.6,-2.6,-1.5); view.gscale=1.05; }
+  else{ view.gtarget.set(-3.5,-6.5,1); view.gscale=1.85; }
+  const zb=$('#zoomBtn'); zb.hidden=L===3; zb.textContent=S.zoomJoint?'Zoom out':'Zoom to joint'; }
+function setLayer(l){ if(!META) l=3; S.layer=l;
+  if(!cfgInit||(l===3)!==DIA){ applyCfg(l===3); cfgInit=true; }
+  frameCam(); collectOccluders();
   $('#layerSeg').querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String(+b.dataset.l===l)));
   $('#layerNote').textContent=LAYER_NOTE[l]; }
-$('#layerSeg').querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{ setLayer(+b.dataset.l); sync(); }));
+$('#layerSeg').querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{ S.tourKeys=null; setLayer(+b.dataset.l); sync(); }));
+$('#zoomBtn').addEventListener('click',()=>{ S.zoomJoint=!S.zoomJoint; frameCam(); });
+function lookFrom(az,pol){ let ga=rad(az); const two=Math.PI*2; view.az=((view.az%two)+two)%two; if(ga-view.az>Math.PI) ga-=two; if(view.az-ga>Math.PI) ga+=two; view.gaz=ga; view.gpol=rad(pol); view.anim=true; }
+/* ---------- guided tour ---------- */
+const TOUR=[
+ {t:'1 of 5 · Your shoulder',x:'This is a left shoulder seen from the front. The joint sits deep under the rounded muscle at the top of the arm. Drag to turn it at any time.',
+  go:()=>{ setLayer(0); S.zoomJoint=false; S.playing=false; S.p=0; S.tear=0; S.tourKeys=['Point of the shoulder','Collarbone','Outer upper arm']; lookFrom(20,78); }},
+ {t:'2 of 5 · Under the skin',x:'These are the big outer muscles. The rounded one over the joint is the deltoid. They move the arm with power, but they are not where rotator cuff tears happen.',
+  go:()=>{ setLayer(1); S.zoomJoint=false; S.playing=false; S.p=0; S.tourKeys=['Shoulder muscle (deltoid)','Chest muscle','Biceps']; lookFrom(20,78); }},
+ {t:'3 of 5 · The rotator cuff',x:'Under those muscles, four small muscles run from the shoulder blade to the top of the arm bone. Their tendons wrap around the ball like a cuff and hold it in the socket. This is the rotator cuff.',
+  go:()=>{ setLayer(2); S.zoomJoint=true; S.playing=false; S.p=0; S.tear=0; S.sel=0; S.tourKeys=['Top tendon','Front tendon','Back tendon','Small back tendon','Bony roof','Ball of the joint']; lookFrom(15,74); }},
+ {t:'4 of 5 · Where it tears',x:'Tears nearly always start in the last centimetre or so of a tendon, where it joins the bone, shown in red. The top tendon tears most often, because it runs through the narrow gap under the bony roof.',
+  go:()=>{ setLayer(2); S.zoomJoint=true; S.playing=false; S.p=0; S.tear=1; S.sel=0; S.tourKeys=['Tear','Top tendon','Bony roof']; lookFrom(25,62); }},
+ {t:'5 of 5 · Why lifting hurts',x:'As the arm lifts, the torn tendon is squeezed in that gap, so the pain is worst in the middle of the lift. The red glow shows where and how much. Next, end the tour and tap the model where yours hurts.',
+  go:()=>{ setLayer(2); S.zoomJoint=true; frameCam(); S.tear=1; S.sel=0; S.sc=0; S.p=0; S.dir=1; S.hold=0; S.playing=true; S.tourKeys=['Tear','Bony roof','Cushion sac']; lookFrom(10,74); }}];
+let tourI=-1;
+function tourShow(){ const on=tourI>=0, st=on?TOUR[tourI]:null;
+  $('#tourStep').textContent=on?st.t:'New to this? Take the 5-step tour.';
+  $('#tourText').textContent=on?st.x:'It peels the shoulder back one layer at a time and shows why a torn tendon hurts.';
+  $('#tourBack').hidden=!on||tourI===0; $('#tourEnd').hidden=!on; $('#tourNext').hidden=on&&tourI===TOUR.length-1; $('#tourNext').textContent=on?'Next':'Start the tour';
+  if(on){ clearShow(); st.go(); frameCam(); sync(); } }
+$('#tourNext').addEventListener('click',()=>{ tourI=Math.min(TOUR.length-1,tourI+1); tourShow(); });
+$('#tourBack').addEventListener('click',()=>{ tourI=Math.max(0,tourI-1); tourShow(); });
+$('#tourEnd').addEventListener('click',()=>{ tourI=-1; S.tourKeys=null; S.playing=false; S.p=0; S.tear=1; S.zoomJoint=false; setLayer(0); tourShow(); sync(); });
 function sync(){
   syncT(); syncA(); syncB();
   $('#tearSeg').querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String(+b.dataset.v===S.tear)));
@@ -820,6 +898,7 @@ function hud(){
 }
 
 /* ---------- pain finder ---------- */
+const dualG=(k,d,off)=>()=>((DIA?d.clone():lmv(k).add(off||V(0,0,0))).applyMatrix4(girdle.matrixWorld));
 function clearShow(){ S.showCond=null; S.showNote=''; spotFn=null; }
 const REG={
  A:['Top of the shoulder, at the end of the collarbone','Pain you can point to with one finger here usually comes from the small joint underneath.'],
@@ -833,16 +912,16 @@ const REG={
 const HEALTHY_NOTE='Shown on a healthy cuff. The pulsing ring marks the part involved.';
 const COND={
  supra:{n:'Tear of the top tendon',m:'Rotator cuff tear, supraspinatus',d:'The tendon over the top of the ball is frayed or torn. Typical signs are pain lifting the arm out to the side, pain at night and weakness holding the arm up. The pain is often felt on the outer upper arm, below the tear itself.',show:{sel:0,tear:1,sc:0,view:'front'}},
- imp:{n:'Pinched, irritated tendon and cushion sac',m:'Subacromial pain, also called impingement or bursitis',d:'The top tendon and the cushion sac are sore and swollen, so they catch under the bony roof as the arm lifts. This is the commonest cause of shoulder pain. The arm is sore but usually still strong.',show:{sel:0,tear:1,sc:0,view:'front',spot:META?()=>bursa.getWorldPosition(V()):gAnchor(V(1.6,3.2,.4)),note:'Shown as a sore, swollen top tendon and cushion sac being pinched under the bony roof. The tendon does not have to be torn for this to hurt.'}},
+ imp:{n:'Pinched, irritated tendon and cushion sac',m:'Subacromial pain, also called impingement or bursitis',d:'The top tendon and the cushion sac are sore and swollen, so they catch under the bony roof as the arm lifts. This is the commonest cause of shoulder pain. The arm is sore but usually still strong.',show:{sel:0,tear:1,sc:0,view:'front',spot:()=>bursa.getWorldPosition(V()),note:'Shown as a sore, swollen top tendon and cushion sac being pinched under the bony roof. The tendon does not have to be torn for this to hurt.'}},
  infra:{n:'Tear of the back tendons',m:'Rotator cuff tear, infraspinatus or teres minor',d:'Pain at the back of the shoulder that is worse when turning the arm outward, with weakness in that movement.',show:{sel:1,tear:1,sc:3,view:'back'}},
  sub:{n:'Tear of the front tendon',m:'Rotator cuff tear, subscapularis',d:'Pain at the front that is worse turning the arm inward or reaching behind the back. It often follows the arm being forced outward or backwards.',show:{sel:3,tear:1,sc:4,view:'front'}},
  bic:{n:'Irritated biceps tendon',m:'Long head of biceps tendinopathy',d:'The tendon running up the groove at the front of the arm bone is sore. Pain is at the front and worse when lifting or reaching forward. It often comes along with rotator cuff trouble.',show:{tear:0,sc:1,view:'front',spot:()=>bic.sw.C[13],note:HEALTHY_NOTE}},
- ac:{n:'Worn or sprained collarbone joint',m:'Acromioclavicular (AC) joint',d:'Pain right on top of the shoulder that you can point to with one finger. It is worse reaching across the chest or lifting high overhead, and can follow a fall onto the point of the shoulder.',show:{tear:0,sc:0,view:'front',spot:gAnchor(META?lmv('clavL'):V(-.8,4.25,.3)),note:HEALTHY_NOTE}},
+ ac:{n:'Worn or sprained collarbone joint',m:'Acromioclavicular (AC) joint',d:'Pain right on top of the shoulder that you can point to with one finger. It is worse reaching across the chest or lifting high overhead, and can follow a fall onto the point of the shoulder.',show:{tear:0,sc:0,view:'front',spot:()=>acJoint.getWorldPosition(V()),note:HEALTHY_NOTE}},
  frozen:{n:'Frozen shoulder',m:'Adhesive capsulitis',d:'The lining of the joint becomes inflamed and tight. The shoulder is stiff in every direction, even when someone else moves it, and often aches at night. Turning the arm outward is usually the first movement to go.',show:{tear:0,sc:3,view:'front',note:'Shown on a healthy cuff. The red shell is the joint lining, which is inflamed and tight in a frozen shoulder.'}},
- oa:{n:'Wear of the main joint',m:'Glenohumeral osteoarthritis',d:'The smooth surfaces of the ball and socket have worn. This gives a deep ache with stiffness and sometimes grinding, and it comes on slowly.',show:{tear:0,sc:3,view:'front',spot:gAnchor(META?lmv('glen'):V(-2.45,0,.9)),note:HEALTHY_NOTE}},
+ oa:{n:'Wear of the main joint',m:'Glenohumeral osteoarthritis',d:'The smooth surfaces of the ball and socket have worn. This gives a deep ache with stiffness and sometimes grinding, and it comes on slowly.',show:{tear:0,sc:3,view:'front',spot:dualG('glen',V(-2.45,0,.9)),note:HEALTHY_NOTE}},
  calc:{n:'Chalky deposit in the tendon',m:'Calcific tendinopathy',d:'A small calcium deposit forms inside the top tendon. It can cause sudden, severe pain with no injury, and is often bad at night.',show:{sel:0,tear:0,sc:0,view:'front',spot:()=>painPos,note:HEALTHY_NOTE}},
- lab:{n:'Loose joint or torn socket rim',m:'Instability or labral tear',d:'The rim of the socket or the supports of the joint are damaged, often after a fall, a dislocation or repeated throwing. It may click, catch or feel as if it slips.',show:{tear:0,sc:6,view:'front',spot:gAnchor(META?lmv('glen').add(V(0,1.3,.6)):V(-2.5,1.2,1.0)),note:HEALTHY_NOTE}},
- neck:{n:'Pain coming from the neck',m:'Referred pain or a trapped nerve',d:'Pain around the shoulder blade or running down the arm can start in the neck. Clues are pins and needles, pain below the elbow, or pain that changes when you move your neck.',show:{tear:0,view:'back',spot:gAnchor(META?lmv('supAng'):Bp(-7.8,4.6,0)),note:'The neck is not part of this model. The ring marks the side nearest the neck, where this pain usually starts.'}}
+ lab:{n:'Loose joint or torn socket rim',m:'Instability or labral tear',d:'The rim of the socket or the supports of the joint are damaged, often after a fall, a dislocation or repeated throwing. It may click, catch or feel as if it slips.',show:{tear:0,sc:6,view:'front',spot:dualG('glen',V(-2.5,1.2,1.0),V(0,1.3,.6)),note:HEALTHY_NOTE}},
+ neck:{n:'Pain coming from the neck',m:'Referred pain or a trapped nerve',d:'Pain around the shoulder blade or running down the arm can start in the neck. Clues are pins and needles, pain below the elbow, or pain that changes when you move your neck.',show:{tear:0,view:'back',spot:dualG('supAng',Bp(-7.8,4.6,0)),note:'The neck is not part of this model. The ring marks the side nearest the neck, where this pain usually starts.'}}
 };
 const BASE={A:{ac:5,imp:2,supra:1.5,neck:1},B:{imp:4,supra:4,calc:2,ac:1.5,frozen:1},C:{bic:4,sub:3,imp:2,supra:1.5,lab:1.5,frozen:1.5,oa:1},
  D:{infra:4,neck:2,oa:1.5,lab:1.5,imp:1.5,frozen:1},E:{supra:4,imp:4,frozen:2,calc:1.5,neck:1.5},F:{neck:5,infra:1,imp:.5,oa:.5},G:{frozen:3,oa:3,lab:2.5,supra:1,imp:1},H:{neck:2,sub:1.5,ac:1.5,bic:1,imp:.5}};
@@ -924,23 +1003,50 @@ QS.forEach(q=>{ const d=document.createElement('div'); d.className='q'; const s=
   $('#fQs').appendChild(d); });
 function clearFinder(){ F.region=null; F.mv.clear(); F.other.clear(); F.start=F.night=F.str=null; pin.visible=false; clearShow(); renderFinder(); }
 $('#fClear').addEventListener('click',()=>{ clearFinder(); sync(); });
-$('#reset').addEventListener('click',()=>{ clearFinder(); S.tear=1; S.sel=0; pick(0); S.p=.55; S.playing=false; setLayer(0); sync(); });
-function showCond(id){ const c=COND[id].show; clearShow(); S.showCond=id; S.showNote=c.note||''; spotFn=c.spot||null;
+$('#reset').addEventListener('click',()=>{ clearFinder(); S.tear=1; S.sel=0; pick(0); S.p=0; S.playing=false; S.zoomJoint=false; S.tourKeys=null; tourI=-1; tourShow(); setLayer(0); sync(); });
+function showCond(id){ const c=COND[id].show; clearShow(); S.tourKeys=null; if(S.layer<2) setLayer(2); S.showCond=id; S.showNote=c.note||''; spotFn=c.spot||null;
   if(c.sel!=null) S.sel=c.sel; S.tear=c.tear; if(c.sc!=null) pick(c.sc); if(c.view) goView(c.view); sync();
   stage.scrollIntoView({block:'start',behavior:reduce?'auto':'smooth'}); }
 const tray=new T.Raycaster(), ndc=new T.Vector2();
 function tapAt(cx,cy){
   const r=canvas.getBoundingClientRect(); ndc.set((cx-r.left)/r.width*2-1,-((cy-r.top)/r.height)*2+1); tray.setFromCamera(ndc,camera);
-  if(S.layer<2){ const hr=tray.intersectObjects(realMeshes.filter(m=>m.visible),false)[0]; if(!hr) return;
-    scene.add(pin); pin.position.copy(hr.point); pin.visible=true; F.region=regionAt(hr.point); renderFinder(); return; }
-  const list=[]; scene.traverse(o=>{ if(o.isMesh&&o.userData.reg&&o.visible&&!(roofMat.opacity<1&&(o.material===roofMat||o.material===roofSweepMat||o.material===ligMat))) list.push(o); });
-  const h=tray.intersectObjects(list,false)[0]; if(!h) return;
-  const rg=typeof h.object.userData.reg==='function'?h.object.userData.reg(h):h.object.userData.reg; if(!rg) return;
-  let par=scene; for(let o=h.object;o;o=o.parent){ if(o===hum||o===girdle){par=o;break;} }
+  const h=tray.intersectObjects(layerMeshes(true),false)[0]; if(!h) return;
+  const o=h.object; let rg, par=scene;
+  if(o.userData.real){ const d=DEF.find(x=>x.mesh===o), a=h.face?h.face.a*3:0; rg=regionAt(d&&h.face?V(d.P0[a],d.P0[a+1],d.P0[a+2]):h.point); }
+  else{ rg=typeof o.userData.reg==='function'?o.userData.reg(h):o.userData.reg; for(let q=o;q;q=q.parent){ if(q===hum||q===girdle){par=q;break;} } }
+  if(!rg) return;
   par.add(pin); pin.position.copy(par.worldToLocal(h.point.clone())); pin.visible=true;
   F.region=rg; renderFinder();
 }
 window.shoulder_tap=tapAt;
+
+/* ---------- fades, bending of skin and muscles, visibility ---------- */
+function setAlpha(m,a,isSkin){ if(!m) return; m.opacity=a; m.transparent=a<.985; m.depthWrite=a>.5;
+  if(isSkin){ const sd=a>.5?T.DoubleSide:T.FrontSide; if(m.side!==sd){ m.side=sd; m.needsUpdate=true; } } }
+function fades(){ const L=S.layer, tS=L===0?1:(L<3&&S.ghost?.13:0), tM=L===1?1:0, k=reduce?1:.16;
+  S.aSkin+=(tS-S.aSkin)*k; if(Math.abs(tS-S.aSkin)<.004) S.aSkin=tS;
+  S.aMus+=(tM-S.aMus)*k; if(Math.abs(tM-S.aMus)<.004) S.aMus=tM;
+  setAlpha(skinMat,S.aSkin,true); musMats.forEach(m=>setAlpha(m,S.aMus,false)); }
+const _tab=new Float32Array(9*33*9), _q0=new T.Quaternion(), _q1=new T.Quaternion(), _m4=new T.Matrix4(), Zax=V(0,0,1);
+function deform(){ if(!DEF.length) return; const g=girdle.rotation.z, q=hum.quaternion, hp=hum.position;
+  const key=q.x.toFixed(4)+q.y.toFixed(4)+q.z.toFixed(4)+q.w.toFixed(4)+hp.x.toFixed(3)+hp.y.toFixed(3)+hp.z.toFixed(3)+g.toFixed(4); let built=false;
+  for(const d of DEF){ if((d.kind==='skin'?S.aSkin:S.aMus)<.01||d.key===key) continue;
+    if(!built){ for(let gi=0;gi<9;gi++){ _q0.setFromAxisAngle(Zax,g*gi/8); for(let ai=0;ai<33;ai++){ _q1.copy(_q0).slerp(q,ai/32); const e=_m4.makeRotationFromQuaternion(_q1).elements, o=(gi*33+ai)*9;
+        _tab[o]=e[0];_tab[o+1]=e[4];_tab[o+2]=e[8];_tab[o+3]=e[1];_tab[o+4]=e[5];_tab[o+5]=e[9];_tab[o+6]=e[2];_tab[o+7]=e[6];_tab[o+8]=e[10]; } } built=true; }
+    const P=d.P0, N=d.N0, pos=d.mesh.geometry.attributes.position, nor=d.mesh.geometry.attributes.normal, pa=pos.array, na=nor.array, n=d.wa.length;
+    for(let i=0;i<n;i++){ const a=d.wa[i], o=(d.wg[i]*33+a)*9, j=i*3, w=a/32, x=P[j],y=P[j+1],z=P[j+2], nx=N[j],ny=N[j+1],nz=N[j+2];
+      pa[j]=_tab[o]*x+_tab[o+1]*y+_tab[o+2]*z+hp.x*w; pa[j+1]=_tab[o+3]*x+_tab[o+4]*y+_tab[o+5]*z+hp.y*w; pa[j+2]=_tab[o+6]*x+_tab[o+7]*y+_tab[o+8]*z+hp.z*w;
+      na[j]=_tab[o]*nx+_tab[o+1]*ny+_tab[o+2]*nz; na[j+1]=_tab[o+3]*nx+_tab[o+4]*ny+_tab[o+5]*nz; na[j+2]=_tab[o+6]*nx+_tab[o+7]*ny+_tab[o+8]*nz; }
+    pos.needsUpdate=true; nor.needsUpdate=true; d.key=key; } }
+function vis(){ const L=S.layer, inner=L>=2;
+  girdle.visible=hum.visible=L>=1;
+  const sw=o=>{ if(o.userData.set) o.visible=(o.userData.set==='D')===DIA; }; girdle.traverse(sw); hum.traverse(sw);
+  clav.mesh.visible=DIA&&L>=1; if(clavG) clavG.visible=!DIA&&L>=1;
+  bursa.visible=inner&&S.bursa; acJoint.visible=inner; capsule.visible=inner&&S.showCond==='frozen';
+  MUS.forEach(m=>{ m.sw.mesh.visible=inner; if(!inner) m.ov.mesh.visible=false; }); bic.sw.mesh.visible=inner;
+  if(!inner) spot.visible=false;
+  realMeshes.forEach(m=>{ const k=m.userData.real; if(m.userData.dup){ m.visible=false; return; }
+    m.visible=k==='skin'?(S.aSkin>.01&&(!m.userData.seam||atRest)):(k==='mus'?S.aMus>.01:(L===1||(L===2&&S.ribs))); }); }
 
 /* ---------- loop ---------- */
 let last=performance.now(),time=0;
@@ -955,16 +1061,13 @@ function tick(now){
   }
   if(S.spin) view.az+=dt*.35;
   if(view.anim){ view.az=lerp(view.az,view.gaz,.14); view.pol=lerp(view.pol,view.gpol,.14); if(Math.abs(view.az-view.gaz)+Math.abs(view.pol-view.gpol)<.002) view.anim=false; }
-  placeCamera(); applyPose(time);
-  const mine=S.layer===2; girdle.visible=hum.visible=bic.sw.mesh.visible=mine; clav.mesh.visible=mine&&!clavG; if(clavG) clavG.visible=mine;
-  MUS.forEach(m=>{ m.sw.mesh.visible=mine; if(!mine) m.ov.mesh.visible=false; });
-  if(!mine){ glow.visible=false; rings.forEach(r=>{r.visible=false;}); spot.visible=false; }
+  placeCamera(); applyPose(time); fades(); deform(); vis();
   hud(); updLabels(W,Hh);
   renderer.render(scene,camera);
   requestAnimationFrame(tick);
 }
 if(window.ResizeObserver) new ResizeObserver(resize).observe(stage); else window.addEventListener('resize',resize);
-resize(); if(!META) $('#layerBar').hidden=true; setLayer(0); sync(); renderFinder();
+resize(); if(!META){ $('#layerBar').hidden=true; $('#tour').hidden=true; } S.aSkin=META?1:0; setLayer(0); sync(); renderFinder();
 if(document.fonts&&document.fonts.ready) document.fonts.ready.then(measureLabels);
 window.shoulder={S,view,goView,sync};
 requestAnimationFrame(tick);
