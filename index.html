@@ -43,6 +43,7 @@ header p{margin:2px 0 0;color:var(--muted);font-size:14px;max-width:65ch}
 .seg.four{grid-template-columns:repeat(4,1fr)}
 .seg.two{grid-template-columns:repeat(2,1fr)}
 .swatch.amber{background:#e9a23b;margin-left:6px}
+.exbanner.ok{background:var(--accent)}
 .exbanner{position:absolute;left:8px;bottom:54px;max-width:calc(100% - 16px);font:600 12px var(--f-label);color:#fff;background:var(--pain);padding:4px 9px;border-radius:6px;pointer-events:none}
 .tour{background:var(--accent-soft);border:1px solid #b9d8de;border-radius:8px;padding:10px 14px}
 .tour strong{font:600 14px var(--f-label);display:block}
@@ -215,17 +216,35 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
       <p class="warn"><strong>Get help fast:</strong> call 999 if shoulder or arm pain comes with chest tightness, breathlessness, sweating or feeling sick. Get seen the same day if the shoulder is hot, red and swollen with a fever, or looks out of shape after an injury. This guide suggests possibilities from where it hurts and your answers. It cannot examine you, so it is not a diagnosis, and the exercises are general ones, not a personal treatment plan.</p>
     </section>
 
+
+  </div>
+
+  <div class="panel">
     <section class="group" id="exampleBox">
-      <h3>See an example tear</h3>
-      <p class="note" style="margin:0 0 8px">The model starts healthy. Pick a tendon to see what a tear there looks like. This is an illustration, not your diagnosis.</p>
-      <h4 style="margin-top:0">Which tendon</h4>
+      <h3>See an example</h3>
+      <p class="note" style="margin:0 0 8px">The model starts healthy. Pick a tendon, how bad the tear is, and a movement to see where it would hurt. This is an illustration, not your diagnosis.</p>
+      <h4 style="margin-top:0">1. Which tendon</h4>
       <div class="chips" id="tendonChips"></div>
-      <h4>How bad</h4>
+      <h4>2. How bad</h4>
       <div class="seg two" id="tearSeg">
         <button type="button" data-v="1">Partial tear</button>
         <button type="button" data-v="2">Full tear</button>
       </div>
       <div class="chips" style="margin-top:10px"><button type="button" id="clearEx">Clear example</button></div>
+      <h4>3. Which movement</h4>
+      <p class="note" style="margin:0 0 6px">Everyday movements</p>
+      <div class="chips" id="moveA"></div>
+      <p class="note" style="margin:10px 0 6px">Sudden or fast movements</p>
+      <div class="chips" id="moveB"></div>
+      <h4>Step through it</h4>
+      <div class="player">
+        <button type="button" id="play" aria-label="Pause">❚❚</button>
+        <input type="range" id="scrub" min="0" max="1000" value="0" aria-label="Position in the movement">
+      </div>
+      <div class="readout" id="readout"></div>
+      <div class="checks" style="margin-top:8px">
+        <label><input type="checkbox" id="slow"> Slow motion</label>
+      </div>
       <p class="note"><span class="swatch"></span>Solid red is the example tear. <span class="swatch amber"></span>Amber bands, which you can turn on under View options, mark where tears usually start.</p>
     </section>
 
@@ -240,26 +259,8 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
         <span class="word" id="painWord">None</span>
       </div>
     </section>
-  </div>
 
-  <div class="panel">
 
-    <section class="group">
-      <h3>Movement</h3>
-      <h4>Everyday movements</h4>
-      <div class="chips" id="moveA"></div>
-      <h4>Sudden or fast movements</h4>
-      <div class="chips" id="moveB"></div>
-      <h4>Step through it</h4>
-      <div class="player">
-        <button type="button" id="play" aria-label="Pause">❚❚</button>
-        <input type="range" id="scrub" min="0" max="1000" value="0" aria-label="Position in the movement">
-      </div>
-      <div class="readout" id="readout"></div>
-      <div class="checks" style="margin-top:8px">
-        <label><input type="checkbox" id="slow"> Slow motion</label>
-      </div>
-    </section>
 
     <section class="group">
       <h3>View options</h3>
@@ -831,10 +832,11 @@ canvas.addEventListener('wheel',e=>{ e.preventDefault(); view.zoom=clamp(view.zo
 function chips(host,items,get,set){ items.forEach(it=>{ const b=document.createElement('button'); b.type='button'; b.textContent=it.label; b.dataset.v=it.v;
   b.addEventListener('click',()=>{ set(it.v); sync(); }); host.appendChild(b); });
   return ()=>host.querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String(String(get())===b.dataset.v))); }
-const syncT=chips($('#tendonChips'),TEND.map((t,i)=>({label:t.name,v:i})),()=>S.tear?S.sel:-1,v=>{clearShow();if(S.layer<2)setLayer(2);S.sel=+v;if(!S.tear)S.tear=1; if(window.innerWidth<920) $('#layerBar').scrollIntoView({block:'start',behavior:reduce?'auto':'smooth'});});
+const toModel=()=>{ if(window.innerWidth<920) $('#layerBar').scrollIntoView({block:'start',behavior:reduce?'auto':'smooth'}); };
+const syncT=chips($('#tendonChips'),TEND.map((t,i)=>({label:t.name,v:i})),()=>S.tear?S.sel:-1,v=>{clearShow();if(S.layer<2)setLayer(2);S.sel=+v;if(!S.tear)S.tear=1; toModel();});
 const pick=v=>{ if(S.layer<2) setLayer(2); S.sc=+v; S.p=0; S.dir=1; S.hold=0; S.playing=true; };
-const syncA=chips($('#moveA'),SC.map((s,i)=>({label:s.name,v:i,g:s.g})).filter(s=>s.g===0),()=>S.sc,v=>{clearShow();pick(v);});
-const syncB=chips($('#moveB'),SC.map((s,i)=>({label:s.name,v:i,g:s.g})).filter(s=>s.g===1),()=>S.sc,v=>{clearShow();pick(v);});
+const syncA=chips($('#moveA'),SC.map((s,i)=>({label:s.name,v:i,g:s.g})).filter(s=>s.g===0),()=>S.sc,v=>{clearShow();pick(v);toModel();});
+const syncB=chips($('#moveB'),SC.map((s,i)=>({label:s.name,v:i,g:s.g})).filter(s=>s.g===1),()=>S.sc,v=>{clearShow();pick(v);toModel();});
 $('#tearSeg').querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{ clearShow(); if(S.layer<2) setLayer(2); S.tear=+b.dataset.v; sync(); }));
 document.querySelectorAll('.views button').forEach(b=>b.addEventListener('click',()=>goView(b.dataset.view)));
 const playBtn=$('#play'), scrub=$('#scrub');
@@ -894,8 +896,8 @@ function sync(){
   $('#tearSeg').querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String(+b.dataset.v===S.tear)));
   [playBtn,play2].forEach(b=>{ b.textContent=S.playing?'❚❚':'▶'; b.setAttribute('aria-label',S.playing?'Pause the movement':'Play the movement'); });
   $('#optSites').checked=S.sites;
-  const bn=$('#exBanner'), bs=S.layer>=2&&(S.tear>0||!!S.showCond); bn.hidden=!bs;
-  if(bs) bn.textContent=S.showCond?'Possible cause: '+COND[S.showCond].n:'Example: '+(S.tear===1?'partial':'full')+' tear of the '+TEND[S.sel].name.toLowerCase();
+  const bn=$('#exBanner'), hl=S.tear===0&&!S.showCond&&(S.playing||S.p>.01), bs=S.layer>=2&&(S.tear>0||!!S.showCond||hl); bn.hidden=!bs; bn.classList.toggle('ok',hl);
+  if(bs) bn.textContent=hl?'Healthy shoulder: no pain in this movement. Pick an example tear to see where it would hurt.':(S.showCond?'Possible cause: '+COND[S.showCond].n:'Example: '+(S.tear===1?'partial':'full')+' tear of the '+TEND[S.sel].name.toLowerCase());
   const tl=LABS.find(l=>l.tear), tt=S.showCond?'Possible cause':'Example tear'; if(tl&&tl.el.textContent!==tt){ tl.el.textContent=tt; tl.w=tl.el.offsetWidth||80; }
   const sc=SC[S.sc];
   $('#exTitle').textContent=sc.name; $('#exWhy').textContent=sc.why;
