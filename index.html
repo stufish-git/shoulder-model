@@ -41,6 +41,9 @@ header p{margin:2px 0 0;color:var(--muted);font-size:14px;max-width:65ch}
 .layerbar p{margin:0;font-size:13px;color:var(--muted)}
 .seg.plain button[aria-pressed="true"]{background:var(--accent)}
 .seg.four{grid-template-columns:repeat(4,1fr)}
+.seg.two{grid-template-columns:repeat(2,1fr)}
+.swatch.amber{background:#e9a23b;margin-left:6px}
+.exbanner{position:absolute;left:8px;bottom:54px;max-width:calc(100% - 16px);font:600 12px var(--f-label);color:#fff;background:var(--pain);padding:4px 9px;border-radius:6px;pointer-events:none}
 .tour{background:var(--accent-soft);border:1px solid #b9d8de;border-radius:8px;padding:10px 14px}
 .tour strong{font:600 14px var(--f-label);display:block}
 .tour p{margin:3px 0 8px;max-width:65ch}
@@ -143,7 +146,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
 @media (min-width:920px){
   .app{grid-template-columns:minmax(0,1.35fr) minmax(320px,1fr);align-items:start;column-gap:18px}
   header{grid-column:1/-1}
-  .left{position:sticky;top:12px;display:grid;gap:14px}
+  .left{position:sticky;top:12px;display:grid;gap:14px;max-height:calc(100vh - 24px);overflow-y:auto}
   .stage{height:min(66vh,640px)}
 }
 @media (max-width:919px){ .left{display:grid;gap:14px} }
@@ -176,6 +179,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
         <button type="button" data-view="side">Side</button>
         <button type="button" data-view="top">Top</button>
       </div>
+      <div class="exbanner" id="exBanner" hidden></div>
       <div class="stagectl">
         <button type="button" id="play2" aria-label="Pause">❚❚</button>
         <button type="button" id="reset">Reset</button>
@@ -211,6 +215,20 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
       <p class="warn"><strong>Get help fast:</strong> call 999 if shoulder or arm pain comes with chest tightness, breathlessness, sweating or feeling sick. Get seen the same day if the shoulder is hot, red and swollen with a fever, or looks out of shape after an injury. This guide suggests possibilities from where it hurts and your answers. It cannot examine you, so it is not a diagnosis, and the exercises are general ones, not a personal treatment plan.</p>
     </section>
 
+    <section class="group" id="exampleBox">
+      <h3>See an example tear</h3>
+      <p class="note" style="margin:0 0 8px">The model starts healthy. Pick a tendon to see what a tear there looks like. This is an illustration, not your diagnosis.</p>
+      <h4 style="margin-top:0">Which tendon</h4>
+      <div class="chips" id="tendonChips"></div>
+      <h4>How bad</h4>
+      <div class="seg two" id="tearSeg">
+        <button type="button" data-v="1">Partial tear</button>
+        <button type="button" data-v="2">Full tear</button>
+      </div>
+      <div class="chips" style="margin-top:10px"><button type="button" id="clearEx">Clear example</button></div>
+      <p class="note"><span class="swatch"></span>Solid red is the example tear. <span class="swatch amber"></span>Amber bands, which you can turn on under View options, mark where tears usually start.</p>
+    </section>
+
     <section class="explain" aria-live="polite">
       <h2 id="exTitle"></h2>
       <p id="exWhy"></p>
@@ -225,17 +243,6 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
   </div>
 
   <div class="panel">
-    <section class="group">
-      <h3>Type of tear</h3>
-      <div class="seg" id="tearSeg">
-        <button type="button" data-v="0">Healthy</button>
-        <button type="button" data-v="1">Partial tear</button>
-        <button type="button" data-v="2">Full tear</button>
-      </div>
-      <h4>Which tendon</h4>
-      <div class="chips" id="tendonChips"></div>
-      <p class="note"><span class="swatch"></span>Red marks where tears happen: the last centimetre or so of each tendon, where it joins the arm bone.</p>
-    </section>
 
     <section class="group">
       <h3>Movement</h3>
@@ -260,7 +267,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
         <label><input type="checkbox" id="optLabels" checked> Show labels</label>
         <label><input type="checkbox" id="optAll"> Show every label, not just the main ones</label>
         <label><input type="checkbox" id="optGhost" checked> Show a faint outline of the body around the muscles and bones</label>
-        <label><input type="checkbox" id="optSites" checked> Show in red every place a tear can happen</label>
+        <label><input type="checkbox" id="optSites"> Show in amber where tears usually start</label>
         <label><input type="checkbox" id="optRoof"> Make the bony roof and collarbone see-through</label>
         <label><input type="checkbox" id="optBursa" checked> Show the cushion sac (bursa)</label>
         <label><input type="checkbox" id="optRibs"> Show the ribs and breastbone behind the shoulder blade</label>
@@ -666,13 +673,13 @@ const SC=[
      'The front tendon is jolted as the ball shifts, which pulls on the torn part.']}
 ];
 const TEAR_TXT=[
- 'Healthy tendon shown. It glides freely and nothing hurts. The red shading marks where tears usually start, close to where each tendon joins the bone.',
- 'Partial tear: the tendon is frayed and thinned but still attached. The damaged fibres are sore and swollen, so they hurt when they are squeezed or pulled.',
- 'Full tear: the tendon has come away from the bone and pulled back. The torn edge is tugged with each movement, the arm is weaker, and the ball can ride up towards the bony roof.'];
+ 'Healthy shoulder shown. The tendons glide freely and nothing hurts. Tap where it hurts, or pick an example tear, to see what can go wrong.',
+ 'Example of a partial tear: the tendon is frayed and thinned but still attached. The damaged fibres are sore and swollen, so they hurt when they are squeezed or pulled.',
+ 'Example of a full tear: the tendon has come away from the bone and pulled back. The torn edge is tugged with each movement, the arm is weaker, and the ball can ride up towards the bony roof.'];
 
 /* ---------- state ---------- */
 const reduce=window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches;
-const S={bursa:true,ghost:true,allLabels:false,zoomJoint:false,aSkin:0,aMus:0,tourKeys:null,ribs:false,layer:2,showCond:null,showNote:'',tear:1,sel:0,sc:0,p:0,dir:1,playing:false,hold:0,slow:false,labels:true,sites:true,spin:false};
+const S={bursa:true,ghost:true,allLabels:false,zoomJoint:false,aSkin:0,aMus:0,tourKeys:null,ribs:false,layer:2,showCond:null,showNote:'',tear:0,sel:0,sc:0,p:0,dir:1,playing:false,hold:0,slow:false,labels:true,sites:false,spin:false};
 const view={az:rad(-28),pol:rad(74),rad:50,gaz:rad(-28),gpol:rad(74),target:V(-2.2,-2.6,0),gtarget:V(-2.2,-2.6,0),lscale:1,gscale:1,anim:false,zoom:1};
 
 /* ---------- pose ---------- */
@@ -697,7 +704,7 @@ function applyPose(time){
   updClav(g);
   MUS.forEach((m,i)=>{ m.mode=(i===S.sel)?S.tear:0; const w=resolve(m); updSweep(m.sw,w,m.o);
     const actual=m.mode>0, show=actual||S.sites; m.ov.mesh.visible=show;
-    if(show){ updSweep(m.ov,w,m.oo); m.tearMat.opacity=actual?1:.62; m.tearMat.depthWrite=actual;
+    if(show){ updSweep(m.ov,w,m.oo); m.tearMat.opacity=actual?1:.7; m.tearMat.color.setHex(actual?0xe3141f:0xe9a23b); m.tearMat.emissive.setHex(actual?0xd00010:0x6b4300); m.tearMat.depthWrite=actual;
       m.tearMat.emissiveIntensity=actual?.45+.35*Math.sin(time*5):.22; } });
   updSweep(bic.sw,resolve(bic),bic.o);
   curElev=P.elev; atRest=Math.abs(P.elev)<1&&Math.abs(P.rot)<1&&!P.pull&&!P.lift;
@@ -824,7 +831,7 @@ canvas.addEventListener('wheel',e=>{ e.preventDefault(); view.zoom=clamp(view.zo
 function chips(host,items,get,set){ items.forEach(it=>{ const b=document.createElement('button'); b.type='button'; b.textContent=it.label; b.dataset.v=it.v;
   b.addEventListener('click',()=>{ set(it.v); sync(); }); host.appendChild(b); });
   return ()=>host.querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String(String(get())===b.dataset.v))); }
-const syncT=chips($('#tendonChips'),TEND.map((t,i)=>({label:t.name,v:i})),()=>S.sel,v=>{clearShow();if(S.layer<2)setLayer(2);S.sel=+v;});
+const syncT=chips($('#tendonChips'),TEND.map((t,i)=>({label:t.name,v:i})),()=>S.tear?S.sel:-1,v=>{clearShow();if(S.layer<2)setLayer(2);S.sel=+v;if(!S.tear)S.tear=1;});
 const pick=v=>{ if(S.layer<2) setLayer(2); S.sc=+v; S.p=0; S.dir=1; S.hold=0; S.playing=true; };
 const syncA=chips($('#moveA'),SC.map((s,i)=>({label:s.name,v:i,g:s.g})).filter(s=>s.g===0),()=>S.sc,v=>{clearShow();pick(v);});
 const syncB=chips($('#moveB'),SC.map((s,i)=>({label:s.name,v:i,g:s.g})).filter(s=>s.g===1),()=>S.sc,v=>{clearShow();pick(v);});
@@ -835,6 +842,7 @@ const play2=$('#play2');
 const togglePlay=()=>{ if(!S.playing&&S.layer<2) setLayer(2); S.playing=!S.playing; if(S.playing&&SC[S.sc].g===1&&S.p>=1){S.p=0;} sync(); };
 playBtn.addEventListener('click',togglePlay); play2.addEventListener('click',togglePlay);
 scrub.addEventListener('input',()=>{ if(S.layer<2) setLayer(2); S.p=scrub.value/1000; S.playing=false; sync(); });
+$('#clearEx').addEventListener('click',()=>{ clearShow(); S.tear=0; sync(); });
 $('#slow').addEventListener('change',e=>S.slow=e.target.checked);
 $('#optLabels').addEventListener('change',e=>S.labels=e.target.checked);
 $('#optSites').addEventListener('change',e=>S.sites=e.target.checked);
@@ -868,8 +876,8 @@ const TOUR=[
   go:()=>{ setLayer(1); S.zoomJoint=false; S.playing=false; S.p=0; S.tourKeys=['Shoulder muscle (deltoid)','Chest muscle','Biceps']; lookFrom(20,78); }},
  {t:'3 of 5 · The rotator cuff',x:'Under those muscles, four small muscles run from the shoulder blade to the top of the arm bone. Their tendons wrap around the ball like a cuff and hold it in the socket. This is the rotator cuff.',
   go:()=>{ setLayer(2); S.zoomJoint=true; S.playing=false; S.p=0; S.tear=0; S.sel=0; S.tourKeys=['Top tendon','Front tendon','Back tendon','Small back tendon','Bony roof','Ball of the joint']; lookFrom(15,74); }},
- {t:'4 of 5 · Where it tears',x:'Tears nearly always start in the last centimetre or so of a tendon, where it joins the bone, shown in red. The top tendon tears most often, because it runs through the narrow gap under the bony roof.',
-  go:()=>{ setLayer(2); S.zoomJoint=true; S.playing=false; S.p=0; S.tear=1; S.sel=0; S.tourKeys=['Tear','Top tendon','Bony roof']; lookFrom(25,62); }},
+ {t:'4 of 5 · Where it tears',x:'Tears nearly always start in the last centimetre or so of a tendon, where it joins the bone. The amber bands mark those places. The red one is an example tear in the top tendon, which tears most often because it runs through the narrow gap under the bony roof.',
+  go:()=>{ setLayer(2); S.zoomJoint=true; S.playing=false; S.p=0; S.tear=1; S.sel=0; S.sites=true; S.tourKeys=['Tear','Top tendon','Bony roof']; lookFrom(25,62); }},
  {t:'5 of 5 · Why lifting hurts',x:'As the arm lifts, the torn tendon is squeezed in that gap, so the pain is worst in the middle of the lift. The red glow shows where and how much. Next, end the tour and tap the model where yours hurts.',
   go:()=>{ setLayer(2); S.zoomJoint=true; frameCam(); S.tear=1; S.sel=0; S.sc=0; S.p=0; S.dir=1; S.hold=0; S.playing=true; S.tourKeys=['Tear','Bony roof','Cushion sac']; lookFrom(10,74); }}];
 let tourI=-1;
@@ -880,11 +888,15 @@ function tourShow(){ const on=tourI>=0, st=on?TOUR[tourI]:null;
   if(on){ clearShow(); st.go(); frameCam(); sync(); } }
 $('#tourNext').addEventListener('click',()=>{ tourI=Math.min(TOUR.length-1,tourI+1); tourShow(); });
 $('#tourBack').addEventListener('click',()=>{ tourI=Math.max(0,tourI-1); tourShow(); });
-$('#tourEnd').addEventListener('click',()=>{ tourI=-1; S.tourKeys=null; S.playing=false; S.p=0; S.tear=1; S.zoomJoint=false; setLayer(0); tourShow(); sync(); });
+$('#tourEnd').addEventListener('click',()=>{ tourI=-1; S.tourKeys=null; S.playing=false; S.p=0; S.tear=0; S.sites=false; S.zoomJoint=false; setLayer(0); tourShow(); sync(); });
 function sync(){
   syncT(); syncA(); syncB();
   $('#tearSeg').querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String(+b.dataset.v===S.tear)));
   [playBtn,play2].forEach(b=>{ b.textContent=S.playing?'❚❚':'▶'; b.setAttribute('aria-label',S.playing?'Pause the movement':'Play the movement'); });
+  $('#optSites').checked=S.sites;
+  const bn=$('#exBanner'), bs=S.layer>=2&&(S.tear>0||!!S.showCond); bn.hidden=!bs;
+  if(bs) bn.textContent=S.showCond?'Possible cause: '+COND[S.showCond].n:'Example: '+(S.tear===1?'partial':'full')+' tear of the '+TEND[S.sel].name.toLowerCase();
+  const tl=LABS.find(l=>l.tear), tt=S.showCond?'Possible cause':'Example tear'; if(tl&&tl.el.textContent!==tt){ tl.el.textContent=tt; tl.w=tl.el.offsetWidth||80; }
   const sc=SC[S.sc];
   $('#exTitle').textContent=sc.name; $('#exWhy').textContent=sc.why;
   const st=S.tear&&!S.showNote; $('#exTendon').textContent=st?sc.t[S.sel]:''; $('#exTendon').style.display=st?'':'none';
@@ -1005,7 +1017,7 @@ QS.forEach(q=>{ const d=document.createElement('div'); d.className='q'; const s=
   $('#fQs').appendChild(d); });
 function clearFinder(){ F.region=null; F.mv.clear(); F.other.clear(); F.start=F.night=F.str=null; PIN=null; pin.visible=false; clearShow(); renderFinder(); }
 $('#fClear').addEventListener('click',()=>{ clearFinder(); sync(); });
-$('#reset').addEventListener('click',()=>{ clearFinder(); S.tear=1; S.sel=0; pick(0); S.p=0; S.playing=false; S.zoomJoint=false; S.tourKeys=null; tourI=-1; tourShow(); setLayer(0); sync(); });
+$('#reset').addEventListener('click',()=>{ clearFinder(); S.tear=0; S.sel=0; S.sites=false; pick(0); S.p=0; S.playing=false; S.zoomJoint=false; S.tourKeys=null; tourI=-1; tourShow(); setLayer(0); sync(); });
 function showCond(id){ const c=COND[id].show; clearShow(); S.tourKeys=null; if(S.layer<2) setLayer(2); S.showCond=id; S.showNote=c.note||''; spotFn=c.spot||null;
   if(c.sel!=null) S.sel=c.sel; S.tear=c.tear; if(c.sc!=null) pick(c.sc); if(c.view) goView(c.view); sync();
   stage.scrollIntoView({block:'start',behavior:reduce?'auto':'smooth'}); }
