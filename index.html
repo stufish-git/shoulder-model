@@ -111,6 +111,17 @@ header p{margin:2px 0 0;color:var(--muted);font-size:14px;max-width:65ch}
 .finder details li strong{display:block}
 .finder details em{color:var(--muted);font-style:normal;display:block}
 .finder .exrule{font-size:13px;color:var(--muted);margin:10px 0}
+.finder #fSpots{list-style:none;margin:0 0 6px;padding:0;display:grid;gap:6px}
+.finder #fSpots li{display:flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:8px;padding:6px 8px}
+.finder #fSpots .num{flex:none;width:24px;height:24px;border-radius:50%;display:grid;place-items:center;font:600 13px var(--f-label);background:#fff;color:var(--ink);border:2px solid var(--ink)}
+.finder #fSpots li.worst .num{background:var(--pain);border-color:var(--pain);color:#fff}
+.finder #fSpots .nm{flex:1;font-weight:500;font-size:14px}
+.finder #fSpots button{font:500 12px var(--f-body);padding:5px 9px;border:1px solid var(--line);background:#fff;color:var(--ink);border-radius:999px;cursor:pointer}
+.finder #fSpots button[aria-pressed="true"]{background:var(--pain);border-color:var(--pain);color:#fff}
+.finder #fOverall{background:var(--accent-soft);border-radius:8px;padding:8px 10px;font-size:14px}
+.finder li .fits{font-size:12px;color:var(--muted);margin:0 0 6px}
+.lab.pinlab{font-weight:600}
+.lab.pinlab.worst{color:var(--pain)}
 .finder .q{margin:0 0 10px}
 .finder .q>span{display:block;font-size:14px;font-weight:500;margin-bottom:5px}
 .finder .flag{background:var(--pain-soft);border:1px solid #f1c9cb;border-radius:8px;padding:8px 10px;font-size:14px;margin:4px 0 10px}
@@ -202,16 +213,18 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
 
     <section class="finder" id="finder" aria-live="polite">
       <h2>Where does it hurt?</h2>
-      <p id="fIntro">Tap the model on the spot where you feel the pain. Turn it first if the spot is round the back.</p>
+      <p id="fIntro">Tap the model where you feel pain. You can mark up to three spots. Turn the model first if a spot is round the back.</p>
       <div id="fBody" hidden>
-        <p><strong id="fRegion"></strong>. <span id="fNote"></span></p>
+        <ul id="fSpots"></ul>
+        <p class="note" id="fMore"></p>
+        <p id="fOverall"></p>
         <h3>A few questions <span>(optional, the list below updates as you answer)</span></h3>
         <div id="fQs"></div>
         <div class="flag" id="fFlag"></div>
-        <h3>What may be causing it, best fit first</h3>
+        <h3>What may be causing it overall, best fit first</h3>
         <ol id="fList"></ol>
         <p class="exrule"><strong>Exercise rules:</strong> mild discomfort is fine, sharp pain is not. Stop any exercise that leaves the shoulder worse afterwards or the next day. Do a little, often. If it is no better after about six weeks, or it is getting worse, see a GP or physiotherapist. The videos were made by NHS physiotherapy services for their own patients and open on their sites.</p>
-        <button type="button" id="fClear">Clear and tap again</button>
+        <button type="button" id="fClear">Clear all spots</button>
       </div>
       <p class="warn"><strong>Get help fast:</strong> call 999 if shoulder or arm pain comes with chest tightness, breathlessness, sweating or feeling sick. Get seen the same day if the shoulder is hot, red and swollen with a fever, or looks out of shape after an injury. This guide suggests possibilities from where it hurts and your answers. It cannot examine you, so it is not a diagnosis, and the exercises are general ones, not a personal treatment plan.</p>
     </section>
@@ -364,7 +377,8 @@ const real=new T.Group(); scene.add(real); const realMeshes=[], REALG={}, DEF=[]
 function regionAt(p){ const a=META.axis, ac=META.ac, s=p.x*a[0]+p.y*a[1]+p.z*a[2];
   const rz=p.z-s*a[2], r=Math.hypot(p.x-s*a[0],p.y-s*a[1],rz);
   if(Math.hypot(p.x-ac[0],p.y-ac[1],p.z-ac[2])<2.6&&p.y>ac[1]-.8) return 'A';
-  if(s>5&&r<5.8){ if(rz>.5*r) return s<10?'C':'E'; if(rz<-.5*r) return s<9?'D':'E'; return 'E'; }
+  const ml=Math.hypot(-1+a[0]*a[0],a[0]*a[1],a[0]*a[2]), um=((p.x-s*a[0])*(-1+a[0]*a[0])+(p.y-s*a[1])*(a[0]*a[1])+rz*(a[0]*a[2]))/ml;   // how far towards the body from the arm's centre line
+  if(s>5&&r<7.4&&um<5.4){ if(rz>.5*r) return s<7.5?'C':'E'; if(rz<-.5*r) return s<9?'D':'E'; return 'E'; }
   if(s<=5&&p.length()<9.5&&p.x>-4){ if(p.y>2.2&&Math.abs(p.z)<3) return 'B'; if(p.z>1.8) return 'C'; if(p.z<-1.8) return 'D'; return p.y>0?'B':'E'; }
   if(p.y>ac[1]-1) return 'F';
   return p.z<META.zmid?'F':'H'; }
@@ -588,6 +602,12 @@ function markTex(pin){ const c=document.createElement('canvas'); c.width=c.heigh
 const pin=new T.Sprite(new T.SpriteMaterial({map:markTex(true),transparent:true,depthTest:true,depthWrite:false})); pin.renderOrder=30; pin.scale.setScalar(1.7); pin.visible=false; scene.add(pin);
 const spot=new T.Sprite(new T.SpriteMaterial({map:markTex(false),transparent:true,depthTest:false,depthWrite:false})); spot.renderOrder=29; spot.visible=false; scene.add(spot);
 let spotFn=null;
+function numTex(n,worst){ const c=document.createElement('canvas'); c.width=c.height=128; const g=c.getContext('2d');
+  g.fillStyle=worst?'#d81f2a':'#fff'; g.beginPath(); g.arc(64,64,50,0,7); g.fill(); g.strokeStyle=worst?'#fff':'#14303b'; g.lineWidth=10; g.stroke();
+  g.fillStyle=worst?'#fff':'#14303b'; g.font='bold 68px sans-serif'; g.textAlign='center'; g.textBaseline='middle'; g.fillText(String(n),64,69);
+  const t=new T.CanvasTexture(c); t.encoding=T.sRGBEncoding; return t; }
+const NUMT=[1,2,3].map(n=>[numTex(n,false),numTex(n,true)]);
+const pinS=[0,1,2].map(()=>{ const sp=new T.Sprite(new T.SpriteMaterial({map:NUMT[0][0],transparent:true,depthTest:false,depthWrite:false})); sp.renderOrder=30; sp.scale.setScalar(1.9); sp.visible=false; scene.add(sp); return sp; });
 
 /* ---------- movements ---------- */
 function shock(p,t0){ if(p<t0) return 0; const x=p-t0; if(x<.05) return ease(x/.05); return Math.exp(-(x-.05)*7)*Math.cos((x-.05)*34); }
@@ -743,7 +763,8 @@ const LABS=[
  {t:'Back tendon',f:()=>MUS[1].sw.C[mi].clone(),key:true},
  {t:'Small back tendon',f:()=>MUS[2].sw.C[mi].clone()},
  {t:'Front tendon',f:()=>MUS[3].sw.C[mi].clone(),key:true},
- {t:'Tear',f:()=>painPos.clone(),tear:true}
+ {t:'Tear',f:()=>painPos.clone(),tear:true},
+ {t:'',pin:0,layer:-1,f:()=>pinS[0].position.clone()},{t:'',pin:1,layer:-1,f:()=>pinS[1].position.clone()},{t:'',pin:2,layer:-1,f:()=>pinS[2].position.clone()}
 ];
 if(META){
   const ML={deltoid:'Shoulder muscle (deltoid)',pec:'Chest muscle',trap:'Upper back muscle (trapezius)',lat:'Broad back muscle',biceps:'Biceps',triceps:'Triceps',infra:'Back cuff muscle'};
@@ -754,7 +775,7 @@ if(META){
    ['Outer upper arm',V(META.axis[0],META.axis[1],META.axis[2]).multiplyScalar(11),V(1,0,0)],['Shoulder blade',ctr('scapula'),V(0,0,-1)]]
    .forEach(a=>{ const p=skinPt(a[1],a[2]); if(p) LABS.push({t:a[0],layer:0,key:a[0]!=='Front of the shoulder'&&a[0]!=='Shoulder blade',f:()=>p.clone()}); });
 }
-LABS.forEach(l=>{ l.el=document.createElement('div'); l.el.className='lab off'+(l.tear?' tear':''); l.el.textContent=l.t; labHost.appendChild(l.el);
+LABS.forEach(l=>{ l.el=document.createElement('div'); l.el.className='lab off'+(l.tear?' tear':'')+(l.pin!==undefined?' pinlab':''); l.el.textContent=l.t; labHost.appendChild(l.el);
   l.line=document.createElementNS(NSV,'line'); l.dot=document.createElementNS(NSV,'circle'); l.dot.setAttribute('r','2');
   if(l.tear){l.line.setAttribute('class','tear');l.dot.setAttribute('class','tear');}
   svg.appendChild(l.line); svg.appendChild(l.dot); l.vis=false; l.occ=false; l.w=80; l.h=14; l.pos=V(); });
@@ -779,7 +800,8 @@ function updLabels(W,Hh){
   const act=[];
   for(const l of LABS){
     const ll=l.layer===undefined?2:l.layer;
-    let on=S.labels&&(ll===S.layer||(ll===2&&S.layer===3))&&(S.tourKeys?S.tourKeys.indexOf(l.t)>=0:(S.allLabels||l.key||l.tear))&&!(l.bursa&&!bursa.visible)&&!(l.tear&&S.tear===0)&&!(ll<2&&!atRest);
+    let on=l.pin!==undefined?(!!PINS[l.pin]&&!!PINS[l.pin].cur):S.labels&&(ll===S.layer||(ll===2&&S.layer===3))&&(S.tourKeys?S.tourKeys.indexOf(l.t)>=0:(S.allLabels||l.key||l.tear))&&!(l.bursa&&!bursa.visible)&&!(l.tear&&S.tear===0)&&!(ll<2&&!atRest);
+    if(l.pin!==undefined&&on&&!pinS[l.pin].visible) on=false;
     if(on){ l.pos.copy((DIA&&l.fd?l.fd:l.f)()); _v.copy(l.pos).project(camera); l.sx=(_v.x*.5+.5)*W; l.sy=(-_v.y*.5+.5)*Hh;
       if(_v.z>1||l.sx<-20||l.sx>W+20||l.sy<-20||l.sy>Hh+20) on=false; }
     if(on&&check&&!l.tear){ _d.subVectors(l.pos,camera.position); const dist=_d.length(); ray.set(camera.position,_d.normalize()); ray.far=dist;
@@ -866,7 +888,7 @@ function setLayer(l){ if(!META) l=3; S.layer=l;
   if(l<2) S.playing=false;
   frameCam(); collectOccluders(); snapPin();
   $('#layerSeg').querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String(+b.dataset.l===l)));
-  $('#layerNote').textContent=LAYER_NOTE[l]+(PIN&&!PIN.cur?' The spot you tapped cannot be placed on this layer, so it is hidden here.':''); }
+  $('#layerNote').textContent=LAYER_NOTE[l]+(PINS.some(q=>!q.cur)?' A spot you tapped cannot be placed on this layer, so it is hidden here.':''); }
 $('#layerSeg').querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{ S.tourKeys=null; setLayer(+b.dataset.l); sync(); }));
 $('#zoomBtn').addEventListener('click',()=>{ S.zoomJoint=!S.zoomJoint; frameCam(); });
 function lookFrom(az,pol){ let ga=rad(az); const two=Math.PI*2; view.az=((view.az%two)+two)%two; if(ga-view.az>Math.PI) ga-=two; if(view.az-ga>Math.PI) ga+=two; view.gaz=ga; view.gpol=rad(pol); view.anim=true; }
@@ -988,21 +1010,59 @@ function planEl(id,open){ const pl=PLAN[id], d=document.createElement('details')
   const av=document.createElement('p'); const s=document.createElement('strong'); s.textContent='Go easy on: '; av.appendChild(s); av.appendChild(document.createTextNode(pl.avoid)); d.appendChild(av);
   return d; }
 const F={region:null,mv:new Set(),start:null,night:null,str:null,other:new Set()};
-function scores(){ const sc={}, b=BASE[F.region]; for(const k in COND) sc[k]=b[k]||0;
-  const add=t=>{ for(const k in t) sc[k]+=t[k]*(b[k]?1:.6); };
+const PINS=[]; const MAXPIN=3;
+const lc=r=>REG[r][0].charAt(0).toLowerCase()+REG[r][0].slice(1);
+function overall(){ // one picture from all the spots: weighted base scores, then bonuses for known combinations
+  const sc={}, base={}, R=new Set(PINS.map(q=>q.region)); let wsum=0;
+  for(const k in COND) base[k]=0;
+  PINS.forEach(q=>{ const w=q.worst?1:.6; wsum+=w; const b=BASE[q.region]; for(const k in b) base[k]+=w*b[k]; });
+  for(const k in COND){ base[k]/=wsum||1; sc[k]=base[k]; }
+  const has=(...a)=>a.some(x=>R.has(x)), notes=[], bump=(t,n)=>{ for(const k in t) sc[k]+=t[k]; if(n) notes.push(n); };
+  if(PINS.length>1){
+    if(R.has('F')&&has('E','H')) bump({neck:3},'Pain that spreads between the shoulder blade or neck and the arm or chest often starts in the neck.');
+    if(R.has('E')&&R.has('B')) bump({supra:2,imp:2},'Pain at the point of the shoulder that also runs down the outer arm is the classic rotator cuff pattern.');
+    if(R.has('D')&&has('B','E')) bump({infra:1.5,supra:1},'Pain at the back as well as the top or outer arm suggests the back tendons may be involved along with the top one.');
+    if(R.has('C')&&has('B','E')) bump({bic:1,sub:1,imp:1},'Front pain together with pain on top or down the arm often means the biceps tendon is irritated alongside the cuff.');
+    if(R.has('A')&&has('B','E')) bump({ac:1,imp:1},'A sore spot at the end of the collarbone together with shoulder-point or arm pain can mean the collarbone joint and the cuff are both involved.');
+    const around=['B','C','D','E','G'].filter(x=>R.has(x)).length;
+    if((R.has('C')&&R.has('D'))||around>=3||(R.has('G')&&around>=2)) bump({frozen:2,oa:1.5,lab:.5},'Pain on several sides of the joint fits a problem with the joint itself more than a single tendon.');
+  }
+  const add=t=>{ for(const k in t) sc[k]+=t[k]*(base[k]>0?1:.6); };
   F.mv.forEach(v=>add(ADJ.mv[v])); F.other.forEach(v=>add(ADJ.other[v]));
   ['start','night','str'].forEach(q=>{ if(F[q]) add(ADJ[q][F[q]]); });
-  return Object.keys(sc).map(k=>[k,sc[k]]).filter(a=>a[1]>0.4).sort((a,b)=>b[1]-a[1]).slice(0,4); }
+  const list=Object.keys(sc).map(k=>[k,sc[k]]).filter(a=>a[1]>0.4).sort((a,b)=>b[1]-a[1]).slice(0,4);
+  const fits=k=>PINS.map((q,i)=>(BASE[q.region][k]||0)>=1.5?i+1:0).filter(Boolean);
+  return {list,notes,fits}; }
 function renderFinder(){
-  const on=!!F.region; $('#fBody').hidden=!on; $('#fIntro').hidden=on; if(!on) return;
-  $('#fRegion').textContent='You tapped: '+REG[F.region][0].toLowerCase(); $('#fNote').textContent=REG[F.region][1];
-  const list=scores(), top=list.length?list[0][1]:1, ol=$('#fList'); ol.textContent='';
+  const on=PINS.length>0; $('#fBody').hidden=!on; $('#fIntro').hidden=on;
+  pinS.forEach((sp,i)=>{ const q=PINS[i]; if(q) sp.material.map=NUMT[i][q.worst?1:0]; });
+  LABS.forEach(l=>{ if(l.pin===undefined) return; const q=PINS[l.pin], t=q?(l.pin+1)+' '+REG[q.region][0]+(q.worst&&PINS.length>1?' · worst':''):''; if(l.el.textContent!==t){ l.el.textContent=t; l.w=l.el.offsetWidth||80; l.h=l.el.offsetHeight||14; } l.el.classList.toggle('worst',!!(q&&q.worst)); });
+  if(!on) return;
+  const ul=$('#fSpots'); ul.textContent='';
+  PINS.forEach((q,i)=>{ const li=document.createElement('li'); if(q.worst) li.className='worst';
+    const n=document.createElement('span'); n.className='num'; n.textContent=i+1; li.appendChild(n);
+    const nm=document.createElement('span'); nm.className='nm'; nm.textContent=REG[q.region][0]; li.appendChild(nm);
+    if(PINS.length>1){ const w=document.createElement('button'); w.type='button'; w.textContent=q.worst?'Worst':'Mark worst'; w.setAttribute('aria-pressed',String(!!q.worst));
+      w.addEventListener('click',()=>{ PINS.forEach(x=>x.worst=false); q.worst=true; renderFinder(); }); li.appendChild(w); }
+    const rm=document.createElement('button'); rm.type='button'; rm.textContent='Remove'; rm.setAttribute('aria-label','Remove spot '+(i+1));
+    rm.addEventListener('click',()=>{ PINS.splice(i,1); if(PINS.length&&!PINS.some(x=>x.worst)) PINS[0].worst=true; snapPin(); renderFinder(); sync(); }); li.appendChild(rm);
+    ul.appendChild(li); });
+  $('#fMore').textContent=PINS.length<MAXPIN?'Tap the model again to add another spot (up to three).':'Three spots is the limit. Remove one to add another.';
+  const ov=overall(), list=ov.list, top=list.length?list[0][1]:1, ol=$('#fList'); ol.textContent='';
+  const worst=PINS.find(q=>q.worst)||PINS[0], names=[...new Set(PINS.map(q=>lc(q.region)))];
+  let txt='Overall picture: pain at the '+(names.length>1?names.slice(0,-1).join(', ')+' and '+names[names.length-1]:names[0])+(PINS.length>1?', worst at the '+lc(worst.region):'')+'. ';
+  txt+=(ov.notes.length?ov.notes.join(' '):REG[worst.region][1])+' ';
+  if(list.length){ const tf=ov.fits(list[0][0]), miss=PINS.map((q,i)=>i+1).filter(i=>tf.indexOf(i)<0);
+    txt+='Best overall fit: '+COND[list[0][0]].n.toLowerCase()+'.';
+    if(PINS.length>1&&miss.length&&tf.length) txt+=(miss.length>1?' Spots '+miss.join(' and ')+' are':' Spot '+miss[0]+' is')+' not well explained by that, so more than one thing may be going on.'; }
+  $('#fOverall').textContent=txt;
   list.forEach((a,i)=>{ const c=COND[a[0]], r=a[1]/top, li=document.createElement('li');
     const rt=document.createElement('div'); rt.className='rt';
     const nm=document.createElement('span'); nm.className='nm'; nm.textContent=c.n; const med=document.createElement('span'); med.className='med'; med.textContent=c.m; nm.appendChild(med);
     const fit=document.createElement('span'); fit.className='fit'; fit.textContent=i===0?'Best fit':r>=.7?'Good fit':'Possible';
     rt.appendChild(nm); rt.appendChild(fit); li.appendChild(rt);
     const bar=document.createElement('div'); bar.className='fbar'; const fill=document.createElement('i'); fill.style.width=Math.round(r*100)+'%'; bar.appendChild(fill); li.appendChild(bar);
+    if(PINS.length>1){ const f=ov.fits(a[0]), fp=document.createElement('p'); fp.className='fits'; fp.textContent=f.length===PINS.length?'Fits all your spots':(f.length?'Fits spot'+(f.length>1?'s ':' ')+f.join(' and '):'Fits the overall pattern more than any one spot'); li.appendChild(fp); }
     const p=document.createElement('p'); p.textContent=c.d; li.appendChild(p);
     const b=document.createElement('button'); b.type='button'; b.textContent='Show on the model'; b.addEventListener('click',()=>showCond(a[0])); li.appendChild(b);
     li.appendChild(planEl(a[0],i===0));
@@ -1017,25 +1077,28 @@ QS.forEach(q=>{ const d=document.createElement('div'); d.className='q'; const s=
   q.o.forEach(o=>{ const b=document.createElement('button'); b.type='button'; b.textContent=o[1]; b.dataset.q=q.k; b.dataset.v=o[0];
     b.addEventListener('click',()=>{ if(q.multi){ F[q.k].has(o[0])?F[q.k].delete(o[0]):F[q.k].add(o[0]); } else F[q.k]=F[q.k]===o[0]?null:o[0]; renderFinder(); }); ch.appendChild(b); });
   $('#fQs').appendChild(d); });
-function clearFinder(){ F.region=null; F.mv.clear(); F.other.clear(); F.start=F.night=F.str=null; PIN=null; pin.visible=false; clearShow(); renderFinder(); }
+function clearFinder(){ PINS.length=0; pinS.forEach(sp=>{sp.visible=false;}); F.mv.clear(); F.other.clear(); F.start=F.night=F.str=null; clearShow(); renderFinder(); }
 $('#fClear').addEventListener('click',()=>{ clearFinder(); sync(); });
 $('#reset').addEventListener('click',()=>{ clearFinder(); S.tear=0; S.sel=0; S.sites=false; pick(0); S.p=0; S.playing=false; S.zoomJoint=false; S.tourKeys=null; tourI=-1; tourShow(); setLayer(0); sync(); });
 function showCond(id){ const c=COND[id].show; clearShow(); S.tourKeys=null; if(S.layer<2) setLayer(2); S.showCond=id; S.showNote=c.note||''; spotFn=c.spot||null;
   if(c.sel!=null) S.sel=c.sel; S.tear=c.tear; if(c.sc!=null) pick(c.sc); if(c.view) goView(c.view); sync();
   stage.scrollIntoView({block:'start',behavior:reduce?'auto':'smooth'}); }
 const tray=new T.Raycaster(), ndc=new T.Vector2();
-let PIN=null; const _pw=V(), _pc=V(), prc=new T.Raycaster();
+const _pw=V(), _pc=V(), prc=new T.Raycaster();
 const groupOf=o=>{ for(let q=o;q;q=q.parent){ if(q===hum||q===girdle||q===clavG) return q; } return scene; };
-function snapPin(){ if(!PIN) return; const L=S.layer;
-  if((PIN.L===3)!==(L===3)){ PIN.cur=null; return; }                  // the diagram is a different shape, so spots do not carry across
-  if(L===PIN.L){ PIN.cur={par:PIN.par,loc:PIN.loc}; return; }
-  scene.updateMatrixWorld(true); const list=layerMeshes(true); let best=null;
-  for(const sg of [-1,1]){ prc.set(PIN.w.clone().addScaledVector(PIN.n,-sg*.2),PIN.n.clone().multiplyScalar(sg)); prc.far=9; const h=prc.intersectObjects(list,false)[0]; if(h&&(!best||h.distance<best.distance)) best=h; }
-  if(!best){ PIN.cur=null; return; }
-  const par=groupOf(best.object); PIN.cur={par,loc:par.worldToLocal(best.point.clone())}; }
-function pinUpdate(){ if(!PIN||!PIN.cur){ pin.visible=false; return; }
-  _pw.copy(PIN.cur.loc); PIN.cur.par.localToWorld(_pw); _pc.subVectors(camera.position,_pw).normalize();
-  pin.position.copy(_pw).addScaledVector(_pc,.45); pin.visible=true; }
+function snapPin(){ const L=S.layer; let list=null;
+  PINS.forEach(P=>{
+    if((P.L===3)!==(L===3)){ P.cur=null; return; }                    // the diagram is a different shape, so spots do not carry across
+    if(L===P.L){ P.cur={par:P.par,loc:P.loc}; return; }
+    if(!list){ scene.updateMatrixWorld(true); list=layerMeshes(true); } let best=null;
+    for(const sg of [-1,1]){ prc.set(P.w.clone().addScaledVector(P.n,-sg*.2),P.n.clone().multiplyScalar(sg)); prc.far=9; const h=prc.intersectObjects(list,false)[0]; if(h&&(!best||h.distance<best.distance)) best=h; }
+    if(!best){ P.cur=null; return; }
+    const par=groupOf(best.object); P.cur={par,loc:par.worldToLocal(best.point.clone())}; }); }
+function pinUpdate(){ pinS.forEach((sp,i)=>{ const P=PINS[i]; if(!P||!P.cur){ sp.visible=false; return; }
+  _pw.copy(P.cur.loc); P.cur.par.localToWorld(_pw); _pc.subVectors(camera.position,_pw).normalize();
+  const dist=camera.position.distanceTo(_pw);
+  if((frame+i)%5===0){ prc.set(camera.position,_pc.clone().negate()); prc.far=dist; const hh=prc.intersectObjects(occluders,false); P.occ=hh.length>0&&hh[0].distance<dist-.7; }
+  sp.position.copy(_pw).addScaledVector(_pc,.3); sp.scale.setScalar(Math.max(1.4,dist*.034)); sp.visible=!P.occ; }); }
 function tapAt(cx,cy){
   const r=canvas.getBoundingClientRect(); ndc.set((cx-r.left)/r.width*2-1,-((cy-r.top)/r.height)*2+1); tray.setFromCamera(ndc,camera);
   const h=tray.intersectObjects(layerMeshes(true),false)[0]; if(!h) return;
@@ -1043,10 +1106,11 @@ function tapAt(cx,cy){
   if(o.userData.real){ const d=DEF.find(x=>x.mesh===o), a=h.face?h.face.a*3:0; rg=regionAt(d&&h.face?V(d.P0[a],d.P0[a+1],d.P0[a+2]):h.point); }
   else rg=typeof o.userData.reg==='function'?o.userData.reg(h):o.userData.reg;
   if(!rg) return;
+  if(PINS.length>=MAXPIN){ renderFinder(); $('#finder').scrollIntoView({block:'nearest',behavior:reduce?'auto':'smooth'}); return; }
   const par=groupOf(o), n=h.face?h.face.normal.clone().transformDirection(o.matrixWorld):V(0,0,1);
   if(n.dot(_pc.subVectors(camera.position,h.point))<0) n.negate();
-  PIN={L:S.layer,w:h.point.clone(),n,par,loc:par.worldToLocal(h.point.clone())}; PIN.cur={par:PIN.par,loc:PIN.loc};
-  F.region=rg; renderFinder();
+  const P={L:S.layer,w:h.point.clone(),n,par,loc:par.worldToLocal(h.point.clone()),region:rg,worst:PINS.length===0}; P.cur={par:P.par,loc:P.loc};
+  PINS.push(P); renderFinder(); $('#layerNote').textContent=LAYER_NOTE[S.layer];
 }
 window.shoulder_tap=tapAt;
 
@@ -1099,7 +1163,7 @@ function tick(now){
 if(window.ResizeObserver) new ResizeObserver(resize).observe(stage); else window.addEventListener('resize',resize);
 resize(); if(!META){ $('#layerBar').hidden=true; $('#tour').hidden=true; } S.aSkin=META?1:0; setLayer(0); sync(); renderFinder();
 if(document.fonts&&document.fonts.ready) document.fonts.ready.then(measureLabels);
-window.shoulder={S,view,goView,sync};
+window.shoulder={S,view,goView,sync,PINS};
 requestAnimationFrame(tick);
 })();
 </script>
