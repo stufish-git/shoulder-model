@@ -1327,9 +1327,16 @@ async function downloadTracker(cid){
   msg.textContent='Making the spreadsheet…';
   try{ const wb=await buildTracker(id,st,wk), buf=await wb.xlsx.writeBuffer();
     const name='shoulder-exercise-tracker-'+st+'.xlsx', blob=new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}), url=URL.createObjectURL(blob);
+    const host=await hostDl();
+    if(host){ URL.revokeObjectURL(url);
+      try{ await host.save({filename:name,data:blob}); msg.textContent='Saved as '+name+'.'; }
+      catch(err){ const c=err&&err.code; msg.textContent=c==='declined'?'Download cancelled.':c==='rate_limited'?'A save is already waiting for your answer. Finish that one, then try again.':'Downloads are not available here. Open the app (link below) and download it from there.'; if(c!=='declined'&&c!=='rate_limited') $('#dlFrame').hidden=false; }
+      return; }
     const a=document.createElement('a'); a.href=url; a.download=name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(url),60000);
     msg.textContent=inFrame?'If nothing was saved, this preview is blocking downloads. Open the app (link below) and download it from there.':'Saved as '+name+'. On an iPhone it opens a preview: tap Share, then Save to Files.';
   }catch(e){ msg.textContent=e&&e.message==='load'?'The spreadsheet tool did not load. Check your connection and try again.':'Something went wrong making the spreadsheet. Please try again.'; } }
+let hostP=null;
+function hostDl(){ if(!hostP) hostP=(window.claude&&typeof window.claude.use==='function')?Promise.resolve(window.claude.use('downloads')).catch(()=>null):Promise.resolve(null); return hostP; }
 function refreshDl(){ const sel=$('#dlCause'); if(!sel) return; const cur=sel.value, ranked=PINS.length?overall().list.map(a=>a[0]):[];
   sel.textContent=''; const add=(par,id,lab)=>{ const o=document.createElement('option'); o.value=id; o.textContent=lab; par.appendChild(o); };
   if(ranked.length){ const g=document.createElement('optgroup'); g.label='From where it hurts'; ranked.forEach((id,i)=>add(g,id,(i===0?'Best fit: ':'')+COND[id].n)); sel.appendChild(g); }
@@ -1339,7 +1346,7 @@ function refreshDl(){ const sel=$('#dlCause'); if(!sel) return; const cur=sel.va
 $('#dlCause').addEventListener('change',()=>{ dlTouched=true; });
 $('#dlStart').value=todayStr();
 $('#dlGo').addEventListener('click',()=>downloadTracker());
-if(inFrame) $('#dlFrame').hidden=false;
+hostDl().then(h=>{ if(!h&&inFrame) $('#dlFrame').hidden=false; });
 window.shoulder_dl=downloadTracker;
 
 /* ---------- loop ---------- */
