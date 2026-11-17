@@ -122,6 +122,12 @@ header p{margin:2px 0 0;color:var(--muted);font-size:14px;max-width:65ch}
 .finder li .fits{font-size:12px;color:var(--muted);margin:0 0 6px}
 .lab.pinlab{font-weight:600}
 .lab.pinlab.worst{color:var(--pain)}
+.dl label{display:block;font:500 12px var(--f-label);color:var(--muted);margin:0 0 4px}
+.dl select,.dl input{width:100%;font:500 14px var(--f-body);padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--ink)}
+.dl .dlrow{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:10px 0 12px}
+.dl #dlGo{width:100%;font:600 14px var(--f-body);padding:11px 14px;border-radius:8px;border:1px solid var(--accent);background:var(--accent);color:#fff;cursor:pointer}
+.dl #dlMsg:empty{display:none}
+.finder button.dlb{margin-top:6px}
 .finder .q{margin:0 0 10px}
 .finder .q>span{display:block;font-size:14px;font-weight:500;margin-bottom:5px}
 .finder .flag{background:var(--pain-soft);border:1px solid #f1c9cb;border-radius:8px;padding:8px 10px;font-size:14px;margin:4px 0 10px}
@@ -227,6 +233,21 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
         <button type="button" id="fClear">Clear all spots</button>
       </div>
       <p class="warn"><strong>Get help fast:</strong> call 999 if shoulder or arm pain comes with chest tightness, breathlessness, sweating or feeling sick. Get seen the same day if the shoulder is hot, red and swollen with a fever, or looks out of shape after an injury. This guide suggests possibilities from where it hurts and your answers. It cannot examine you, so it is not a diagnosis, and the exercises are general ones, not a personal treatment plan.</p>
+    </section>
+
+    <section class="group dl" id="dlBox">
+      <h3>Download an exercise tracker</h3>
+      <p class="note" style="margin:0 0 8px">A spreadsheet with the matching exercises: how to do each one, the sets to aim for each day, boxes to record what you did and your pain, and a weekly summary to show a GP or physiotherapist. It is made on your device and not sent anywhere.</p>
+      <label for="dlCause">Exercises for</label>
+      <select id="dlCause"></select>
+      <p class="note" id="dlFrom" style="margin:4px 0 0"></p>
+      <div class="dlrow">
+        <div><label for="dlStart">Start date</label><input type="date" id="dlStart"></div>
+        <div><label for="dlWeeks">Length</label><select id="dlWeeks"><option value="4">4 weeks</option><option value="6" selected>6 weeks</option><option value="8">8 weeks</option></select></div>
+      </div>
+      <button type="button" id="dlGo">Download spreadsheet (.xlsx)</button>
+      <p class="note" id="dlMsg" aria-live="polite"></p>
+      <p class="note" id="dlFrame" hidden>Downloads may be blocked in this preview. In the installed app they work: <a href="https://stufish-git.github.io/shoulder-model/" target="_blank" rel="noopener">stufish-git.github.io/shoulder-model</a></p>
     </section>
 
 
@@ -1008,6 +1029,8 @@ function planEl(id,open){ const pl=PLAN[id], d=document.createElement('details')
     if(e[3]){ const a=document.createElement('a'); a.className='vid'; a.href=e[3]; a.target='_blank'; a.rel='noopener'; a.textContent='▶ Watch: '+e[4]; li.appendChild(a); }
     ul.appendChild(li); }); d.appendChild(ul);
   const av=document.createElement('p'); const s=document.createElement('strong'); s.textContent='Go easy on: '; av.appendChild(s); av.appendChild(document.createTextNode(pl.avoid)); d.appendChild(av);
+  const db=document.createElement('button'); db.type='button'; db.className='dlb'; db.textContent='Download a tracker for these exercises';
+  db.addEventListener('click',()=>{ $('#dlCause').value=id; dlTouched=true; $('#dlBox').scrollIntoView({block:'nearest',behavior:reduce?'auto':'smooth'}); downloadTracker(id); }); d.appendChild(db);
   return d; }
 const F={region:null,mv:new Set(),start:null,night:null,str:null,other:new Set()};
 const PINS=[]; const MAXPIN=3;
@@ -1034,6 +1057,7 @@ function overall(){ // one picture from all the spots: weighted base scores, the
   const fits=k=>PINS.map((q,i)=>(BASE[q.region][k]||0)>=1.5?i+1:0).filter(Boolean);
   return {list,notes,fits}; }
 function renderFinder(){
+  refreshDl();
   const on=PINS.length>0; $('#fBody').hidden=!on; $('#fIntro').hidden=on;
   pinS.forEach((sp,i)=>{ const q=PINS[i]; if(q) sp.material.map=NUMT[i][q.worst?1:0]; });
   LABS.forEach(l=>{ if(l.pin===undefined) return; const q=PINS[l.pin], t=q?(l.pin+1)+' '+REG[q.region][0]+(q.worst&&PINS.length>1?' · worst':''):''; if(l.el.textContent!==t){ l.el.textContent=t; l.w=l.el.offsetWidth||80; l.h=l.el.offsetHeight||14; } l.el.classList.toggle('worst',!!(q&&q.worst)); });
@@ -1077,7 +1101,7 @@ QS.forEach(q=>{ const d=document.createElement('div'); d.className='q'; const s=
   q.o.forEach(o=>{ const b=document.createElement('button'); b.type='button'; b.textContent=o[1]; b.dataset.q=q.k; b.dataset.v=o[0];
     b.addEventListener('click',()=>{ if(q.multi){ F[q.k].has(o[0])?F[q.k].delete(o[0]):F[q.k].add(o[0]); } else F[q.k]=F[q.k]===o[0]?null:o[0]; renderFinder(); }); ch.appendChild(b); });
   $('#fQs').appendChild(d); });
-function clearFinder(){ PINS.length=0; pinS.forEach(sp=>{sp.visible=false;}); F.mv.clear(); F.other.clear(); F.start=F.night=F.str=null; clearShow(); renderFinder(); }
+function clearFinder(){ dlTouched=false; PINS.length=0; pinS.forEach(sp=>{sp.visible=false;}); F.mv.clear(); F.other.clear(); F.start=F.night=F.str=null; clearShow(); renderFinder(); }
 $('#fClear').addEventListener('click',()=>{ clearFinder(); sync(); });
 $('#reset').addEventListener('click',()=>{ clearFinder(); S.tear=0; S.sel=0; S.sites=false; pick(0); S.p=0; S.playing=false; S.zoomJoint=false; S.tourKeys=null; tourI=-1; tourShow(); setLayer(0); sync(); });
 function showCond(id){ const c=COND[id].show; clearShow(); S.tourKeys=null; if(S.layer<2) setLayer(2); S.showCond=id; S.showNote=c.note||''; spotFn=c.spot||null;
@@ -1141,6 +1165,182 @@ function vis(){ const L=S.layer, inner=L>=2;
   if(!inner) spot.visible=false;
   realMeshes.forEach(m=>{ const k=m.userData.real; if(m.userData.dup){ m.visible=false; return; }
     m.visible=k==='skin'?(S.aSkin>.01&&(!m.userData.seam||atRest)):(k==='mus'?S.aMus>.01:(L===1||(L===2&&S.ribs))); }); }
+
+/* ---------- downloadable exercise tracker (spreadsheet made on the device) ---------- */
+const XL_SRC='exceljs.min.js';
+const DOSE={pend:{n:3,per:'About 1 minute of gentle swinging'},slide:{n:2,per:'10 slow repeats'},stick:{n:2,per:'10 slow repeats'},wall:{n:2,per:'5 to 10 repeats'},
+ blade:{n:2,per:'10 squeezes, each held 5 to 10 seconds'},isoOut:{n:2,per:'5 to 10 pushes, each held 10 seconds'},isoIn:{n:2,per:'5 to 10 pushes, each held 10 seconds'},
+ band:{n:3,per:'10 repeats',every:2,from:3,note:'Starts in week 3, or sooner once the wall pushes are easy.'},curl:{n:1,per:'5 holds of 10 seconds'},neckT:{n:3,per:'10 chin tucks, then 10 slow turns each way'}};
+const RULES='Mild discomfort is fine, sharp pain is not. Stop any exercise that leaves the shoulder worse afterwards or the next day. Do a little, often. If it is no better after about six weeks, or it is getting worse, see a GP or physiotherapist.';
+const HELP='Call 999 if shoulder or arm pain comes with chest tightness, breathlessness, sweating or feeling sick. Get seen the same day if the shoulder is hot, red and swollen with a fever, or looks out of shape after an injury. Sudden weakness after a fall or jolt should be checked within days.';
+let xlP=null, dlTouched=false;
+const inFrame=(()=>{ try{ return window.self!==window.top; }catch(e){ return true; } })();
+function loadXL(){ if(window.ExcelJS) return Promise.resolve();
+  if(!xlP) xlP=new Promise((res,rej)=>{ const sc=document.createElement('script'); sc.src=XL_SRC; sc.onload=()=>res(); sc.onerror=()=>{ xlP=null; rej(new Error('load')); }; document.head.appendChild(sc); });
+  return xlP; }
+const colL=n=>{ let s=''; while(n>0){ const m=(n-1)%26; s=String.fromCharCode(65+m)+s; n=(n-m-1)/26; } return s; };
+const todayStr=()=>{ const t=new Date(); return t.getFullYear()+'-'+String(t.getMonth()+1).padStart(2,'0')+'-'+String(t.getDate()).padStart(2,'0'); };
+function answersText(){ const out=[]; QS.forEach(q=>{ const v=F[q.k], sel=q.o.filter(o=>v instanceof Set?v.has(o[0]):v===o[0]).map(o=>o[1]); if(sel.length) out.push([q.q.replace(/\?$/,''),sel.join('; ')]); }); return out; }
+async function buildTracker(cid,startStr,weeks){
+  await loadXL();
+  const c=COND[cid], pl=PLAN[cid], exs=pl.ex.map(k=>({k,e:EXS[k],d:DOSE[k]||{n:2,per:EXS[k][2]}}));
+  const ymd=startStr.split('-').map(Number), start=new Date(Date.UTC(ymd[0],ymd[1]-1,ymd[2])), days=weeks*7;
+  const wb=new ExcelJS.Workbook(); wb.creator='Rotator Cuff Shoulder Model'; wb.created=new Date();
+  const TEAL='FF0D6B7A', INK='FF14303B', MUTED='FF587180', INPUT='FFFFF3C4', BAND='FFF3F7F8', LINE='FFCBD8DE', RED='FFD81F2A';
+  const thin={style:'thin',color:{argb:LINE}}, box={top:thin,left:thin,bottom:thin,right:thin};
+  const fill=a=>({type:'pattern',pattern:'solid',fgColor:{argb:a}}), wrap={wrapText:true,vertical:'top'};
+  const set=(ws,row,col,v,st)=>{ const cell=ws.getCell(row,col); cell.value=v; if(st) for(const k in st) cell[k]=st[k]; return cell; };
+  const hRow=(ws,row,txt,len)=>{ ws.getRow(row).height=Math.max(16,15*Math.ceil(txt.length/len)); };
+  const headSt={font:{bold:true,color:{argb:'FFFFFFFF'}},fill:fill(TEAL),alignment:{wrapText:true,vertical:'middle',horizontal:'center'},border:box};
+
+  /* ---- sheet 1: the plan ---- */
+  const P=wb.addWorksheet('Plan',{views:[{showGridLines:false}],properties:{tabColor:{argb:TEAL}}});
+  P.columns=[{width:24},{width:50},{width:28},{width:11},{width:12},{width:10},{width:14}];
+  set(P,1,1,'Shoulder exercise plan',{font:{bold:true,size:16,color:{argb:INK}}});
+  const sub='Possible cause: '+c.n+' ('+c.m+'). General exercises from a teaching model, not a diagnosis or a personal treatment plan.';
+  set(P,2,1,sub,{font:{color:{argb:MUTED}},alignment:wrap}); P.mergeCells(2,1,2,7); hRow(P,2,sub,120);
+  set(P,4,1,'Start date',{font:{bold:true}}); set(P,4,2,start,{numFmt:'ddd d mmm yyyy',fill:fill(INPUT),border:box,alignment:{horizontal:'left'}});
+  set(P,4,3,'Change this and every date in the log moves with it.',{font:{italic:true,color:{argb:MUTED}}}); P.mergeCells(4,3,4,7);
+  set(P,5,1,'Length',{font:{bold:true}}); set(P,5,2,weeks+' weeks ('+days+' days)');
+  set(P,6,1,'Made',{font:{bold:true}}); set(P,6,2,new Date().toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'}));
+  let r=8;
+  if(PINS.length){
+    set(P,r,1,'Where it hurts',{font:{bold:true,size:12,color:{argb:TEAL}}}); r++;
+    PINS.forEach((q,i)=>{ set(P,r,1,'Spot '+(i+1)+(q.worst&&PINS.length>1?' (worst)':'')); set(P,r,2,REG[q.region][0]); r++; });
+    answersText().forEach(a=>{ set(P,r,1,a[0],{alignment:wrap}); set(P,r,2,a[1],{alignment:wrap}); P.mergeCells(r,2,r,7); hRow(P,r,a[0],24); r++; });
+    const ov=$('#fOverall').textContent.replace(/^Overall picture:\s*/,'');
+    if(ov){ set(P,r,1,'Overall picture',{alignment:wrap}); set(P,r,2,ov,{alignment:wrap}); P.mergeCells(r,2,r,7); hRow(P,r,ov,120); r++; }
+    r++; }
+  set(P,r,1,'Why these exercises',{font:{bold:true,size:12,color:{argb:TEAL}}}); r++;
+  set(P,r,1,pl.lead,{alignment:wrap}); P.mergeCells(r,1,r,7); hRow(P,r,pl.lead,140); r+=2;
+  ['Exercise','How to do it','One set is','Sets per day','Every how many days','From week','NHS video'].forEach((h,i)=>set(P,r,i+1,h,headSt)); P.getRow(r).height=32; r++;
+  const exRow=[];
+  exs.forEach(x=>{ exRow.push(r); const how=x.e[1]+(x.d.note?' '+x.d.note:''), mid={horizontal:'center',vertical:'top'};
+    set(P,r,1,x.e[0],{font:{bold:true},alignment:wrap,border:box}); set(P,r,2,how,{alignment:wrap,border:box}); set(P,r,3,x.d.per,{alignment:wrap,border:box});
+    set(P,r,4,x.d.n,{fill:fill(INPUT),border:box,alignment:mid}); set(P,r,5,x.d.every||1,{fill:fill(INPUT),border:box,alignment:mid}); set(P,r,6,x.d.from||1,{fill:fill(INPUT),border:box,alignment:mid});
+    if(x.e[3]) set(P,r,7,{text:'Watch (NHS)',hyperlink:x.e[3]},{font:{color:{argb:'FF0563C1'},underline:true},border:box,alignment:wrap}); else set(P,r,7,'None found',{font:{color:{argb:MUTED}},border:box,alignment:wrap});
+    hRow(P,r,how,48); r++; });
+  set(P,r,1,'Yellow boxes can be changed. The daily targets follow them.',{font:{italic:true,color:{argb:MUTED}}}); P.mergeCells(r,1,r,7); r+=2;
+  [['Go easy on',pl.avoid,INK],['Exercise rules',RULES,INK],['Get help fast',HELP,RED]].forEach(a=>{
+    set(P,r,1,a[0],{font:{bold:true,color:{argb:a[2]}},alignment:wrap}); set(P,r,2,a[1],{alignment:wrap}); P.mergeCells(r,2,r,7); hRow(P,r,a[1],120); r++; });
+  P.pageSetup={orientation:'landscape',fitToPage:true,fitToWidth:1,fitToHeight:0,margins:{left:.4,right:.4,top:.5,bottom:.5,header:.3,footer:.3}};
+
+  /* ---- sheet 2: daily log ---- */
+  const E=exs.length, cT=4+2*E, cD=cT+1, cP=cD+1, cB=cP+1, cA=cB+1, cN=cA+1, first=6, last=first+days-1, tot=last+1;
+  const Lg=wb.addWorksheet('Daily log',{views:[{state:'frozen',xSplit:3,ySplit:5,showGridLines:false}]});
+  set(Lg,1,1,'Daily log',{font:{bold:true,size:14,color:{argb:INK}}});
+  const hint='Fill in the yellow boxes: the sets you did, your pain before and after exercising (0 = none, 10 = worst) and any notes. The targets come from the Plan sheet.';
+  set(Lg,2,1,hint,{font:{color:{argb:MUTED}},alignment:wrap}); Lg.mergeCells(2,1,2,Math.min(cN,14)); hRow(Lg,2,hint,140);
+  [[1,'Day'],[2,'Date'],[3,'Week']].forEach(a=>{ Lg.mergeCells(4,a[0],5,a[0]); set(Lg,4,a[0],a[1],headSt); });
+  exs.forEach((x,i)=>{ const c0=4+2*i; Lg.mergeCells(4,c0,4,c0+1); set(Lg,4,c0,x.e[0],headSt); set(Lg,5,c0,'Target',headSt); set(Lg,5,c0+1,'Done',headSt); });
+  Lg.mergeCells(4,cT,4,cD); set(Lg,4,cT,'All exercises',headSt); set(Lg,5,cT,'Target',headSt); set(Lg,5,cD,'Done',headSt);
+  [[cP,'% done'],[cB,'Pain before (0-10)'],[cA,'Pain after (0-10)'],[cN,'Notes']].forEach(a=>{ Lg.mergeCells(4,a[0],5,a[0]); set(Lg,4,a[0],a[1],headSt); });
+  Lg.getRow(4).height=34; Lg.getRow(5).height=18;
+  Lg.getColumn(1).width=6; Lg.getColumn(2).width=13; Lg.getColumn(3).width=7;
+  for(let i=0;i<E;i++){ Lg.getColumn(4+2*i).width=9; Lg.getColumn(5+2*i).width=9; }
+  Lg.getColumn(cT).width=9; Lg.getColumn(cD).width=9; Lg.getColumn(cP).width=9; Lg.getColumn(cB).width=11; Lg.getColumn(cA).width=11; Lg.getColumn(cN).width=40;
+  const tgtCells=row=>exs.map((x,i)=>colL(4+2*i)+row), doneCells=row=>exs.map((x,i)=>colL(5+2*i)+row);
+  const vSets={type:'whole',operator:'between',allowBlank:true,formulae:[0,20],showErrorMessage:true,errorTitle:'Sets done',error:'Enter a whole number of sets, 0 to 20.'};
+  const vPain={type:'decimal',operator:'between',allowBlank:true,formulae:[0,10],showErrorMessage:true,errorTitle:'Pain score',error:'Enter a pain score from 0 (none) to 10 (worst).'};
+  for(let d=0;d<days;d++){ const row=first+d, wkOdd=Math.floor(d/7)%2===1, base=wkOdd?fill(BAND):undefined;
+    const top=d%7===0?{style:'medium',color:{argb:TEAL}}:thin, bx={top,left:thin,bottom:thin,right:thin};
+    const calc=(col,v,extra)=>set(Lg,row,col,v,Object.assign({border:bx,alignment:{horizontal:'center'}},base?{fill:base}:{},extra||{}));
+    calc(1,d+1); calc(2,{formula:'Plan!$B$4+'+d},{numFmt:'ddd d mmm'}); calc(3,{formula:'INT((A'+row+'-1)/7)+1'});
+    exs.forEach((x,i)=>{ const pr=exRow[i];
+      calc(4+2*i,{formula:'IF(AND($C'+row+'>=Plan!$F$'+pr+',MOD($A'+row+'-1,Plan!$E$'+pr+')=0),Plan!$D$'+pr+',0)'},{font:{color:{argb:MUTED}}});
+      const dc=set(Lg,row,5+2*i,null,{fill:fill(INPUT),border:bx,alignment:{horizontal:'center'}}); dc.dataValidation=vSets; });
+    calc(cT,{formula:tgtCells(row).join('+')},{font:{bold:true,color:{argb:MUTED}}});
+    calc(cD,{formula:doneCells(row).join('+')},{font:{bold:true}});
+    calc(cP,{formula:'IF(OR('+colL(cT)+row+'=0,COUNT('+doneCells(row).join(',')+')=0),"",'+colL(cD)+row+'/'+colL(cT)+row+')'},{numFmt:'0%'});
+    [cB,cA].forEach(col=>{ const pc=set(Lg,row,col,null,{fill:fill(INPUT),border:bx,alignment:{horizontal:'center'}}); pc.dataValidation=vPain; });
+    set(Lg,row,cN,null,{fill:fill(INPUT),border:bx,alignment:{wrapText:true}}); }
+  set(Lg,tot,1,'Total',{font:{bold:true},border:box}); Lg.mergeCells(tot,1,tot,3);
+  for(let col=4;col<=cD;col++) set(Lg,tot,col,{formula:'SUM('+colL(col)+first+':'+colL(col)+last+')'},{font:{bold:true},border:box,alignment:{horizontal:'center'},fill:fill(HEAD_FILL)});
+  set(Lg,tot,cP,{formula:'IF('+colL(cT)+tot+'=0,"",'+colL(cD)+tot+'/'+colL(cT)+tot+')'},{numFmt:'0%',font:{bold:true},border:box,alignment:{horizontal:'center'},fill:fill(HEAD_FILL)});
+  const pctRules=ref=>({ref,rules:[
+    {type:'cellIs',operator:'greaterThanOrEqual',formulae:['1'],style:{fill:{type:'pattern',pattern:'solid',bgColor:{argb:'FFC6EFCE'}},font:{color:{argb:'FF006100'}}}},
+    {type:'cellIs',operator:'between',formulae:['0.5','0.9999'],style:{fill:{type:'pattern',pattern:'solid',bgColor:{argb:'FFFFEB9C'}},font:{color:{argb:'FF9C5700'}}}},
+    {type:'cellIs',operator:'lessThan',formulae:['0.5'],style:{fill:{type:'pattern',pattern:'solid',bgColor:{argb:'FFFFC7CE'}},font:{color:{argb:'FF9C0006'}}}}]});
+  Lg.addConditionalFormatting(pctRules(colL(cP)+first+':'+colL(cP)+tot));
+  Lg.pageSetup={orientation:'landscape',fitToPage:true,fitToWidth:1,fitToHeight:0,printTitlesRow:'4:5'};
+
+  /* ---- sheet 3: weekly summary ---- */
+  const W=wb.addWorksheet('Weekly summary',{views:[{showGridLines:false}]});
+  set(W,1,1,'Weekly summary',{font:{bold:true,size:14,color:{argb:INK}}});
+  const wnote='Worked out from the daily log. Useful to show a GP or physiotherapist.';
+  set(W,2,1,wnote,{font:{color:{argb:MUTED}}}); W.mergeCells(2,1,2,10);
+  const hd=['Week','From','To','Sets target','Sets done','% done','Days logged','Average pain before','Average pain after','Pain change during exercise'];
+  hd.forEach((h,i)=>set(W,4,i+1,h,headSt)); W.getRow(4).height=34;
+  [7,13,13,10,10,9,9,12,12,14].forEach((w,i)=>{ W.getColumn(i+1).width=w; });
+  const rng=col=>"'Daily log'!$"+colL(col)+'$'+first+':$'+colL(col)+'$'+last, wk=rng(3);
+  for(let w=1;w<=weeks;w++){ const row=4+w, c={border:box,alignment:{horizontal:'center'}};
+    set(W,row,1,w,Object.assign({font:{bold:true}},c));
+    set(W,row,2,{formula:'Plan!$B$4+'+((w-1)*7)},Object.assign({numFmt:'ddd d mmm'},c));
+    set(W,row,3,{formula:'Plan!$B$4+'+((w-1)*7+6)},Object.assign({numFmt:'ddd d mmm'},c));
+    set(W,row,4,{formula:'SUMIFS('+rng(cT)+','+wk+',A'+row+')'},c);
+    set(W,row,5,{formula:'SUMIFS('+rng(cD)+','+wk+',A'+row+')'},c);
+    set(W,row,7,{formula:'SUMPRODUCT(('+wk+'=A'+row+')*ISNUMBER('+rng(cP)+'))'},c);
+    set(W,row,6,{formula:'IF(OR(D'+row+'=0,G'+row+'=0),"",E'+row+'/D'+row+')'},Object.assign({numFmt:'0%'},c));
+    set(W,row,8,{formula:'IFERROR(AVERAGEIFS('+rng(cB)+','+wk+',A'+row+'),"")'},Object.assign({numFmt:'0.0'},c));
+    set(W,row,9,{formula:'IFERROR(AVERAGEIFS('+rng(cA)+','+wk+',A'+row+'),"")'},Object.assign({numFmt:'0.0'},c));
+    set(W,row,10,{formula:'IF(OR(H'+row+'="",I'+row+'=""),"",I'+row+'-H'+row+')'},Object.assign({numFmt:'+0.0;-0.0;0.0'},c)); }
+  const wl=4+weeks, wt=wl+1, bc={border:box,alignment:{horizontal:'center'},font:{bold:true},fill:fill(HEAD_FILL)};
+  set(W,wt,1,'All',bc); W.mergeCells(wt,1,wt,3);
+  set(W,wt,4,{formula:'SUM(D5:D'+wl+')'},bc); set(W,wt,5,{formula:'SUM(E5:E'+wl+')'},bc); set(W,wt,7,{formula:'SUM(G5:G'+wl+')'},bc);
+  set(W,wt,6,{formula:'IF(OR(D'+wt+'=0,G'+wt+'=0),"",E'+wt+'/D'+wt+')'},Object.assign({numFmt:'0%'},bc));
+  set(W,wt,8,{formula:'IFERROR(AVERAGE('+rng(cB)+'),"")'},Object.assign({numFmt:'0.0'},bc));
+  set(W,wt,9,{formula:'IFERROR(AVERAGE('+rng(cA)+'),"")'},Object.assign({numFmt:'0.0'},bc));
+  set(W,wt,10,{formula:'IF(OR(H'+wt+'="",I'+wt+'=""),"",I'+wt+'-H'+wt+')'},Object.assign({numFmt:'+0.0;-0.0;0.0'},bc));
+  W.addConditionalFormatting(pctRules('F5:F'+wt));
+  W.addConditionalFormatting({ref:'J5:J'+wl,rules:[{type:'cellIs',operator:'greaterThanOrEqual',formulae:['2'],style:{fill:{type:'pattern',pattern:'solid',bgColor:{argb:'FFFFC7CE'}},font:{color:{argb:'FF9C0006'}}}}]});
+  let nr=wt+2;
+  ['How to read it',
+   '% done compares the sets you did with the target for the whole week, so a week in progress looks low until it is finished.',
+   'Average pain before is your everyday level. Over the weeks it should stay level or come down.',
+   'Pain change during exercise is pain after minus pain before. A small rise that settles is fine. A rise of 2 or more is shaded red: ease off those exercises.',
+   'If pain before is still rising after a few weeks, or there is no improvement by about week 6, see a GP or physiotherapist.'
+  ].forEach((t,i)=>{ set(W,nr,1,t,{font:i?{color:{argb:INK}}:{bold:true,color:{argb:TEAL}},alignment:wrap}); W.mergeCells(nr,1,nr,10); hRow(W,nr,t,110); nr++; });
+
+  W.pageSetup={orientation:'landscape',fitToPage:true,fitToWidth:1,fitToHeight:0};
+  /* ---- sheet 4: how to use ---- */
+  const H=wb.addWorksheet('How to use',{views:[{showGridLines:false}]}); H.getColumn(1).width=100;
+  ['How to use this tracker',
+   '1. Read the Plan sheet. Watch the NHS video for any exercise you are unsure of.',
+   '2. Check the start date on the Plan sheet. The dates in the log follow it.',
+   '3. Each day, fill in the yellow boxes on the Daily log: how many sets of each exercise you did, your pain before and after, and any notes.',
+   '4. A set is one round of the repeats listed for that exercise, so "2 sets a day" means doing the full round twice, for example morning and evening.',
+   '5. Target shows 0 on days an exercise is not due, for example the band exercise on rest days or before it starts.',
+   '6. The % done column turns green when you hit the day\'s target, amber at half or more, and red below half.',
+   '7. You can change the sets per day, how often, or the start week for any exercise in the yellow boxes on the Plan sheet. The targets update.',
+   '8. Take the Weekly summary to any GP or physiotherapy appointment.',
+   '',
+   'Exercise rules: '+RULES,
+   'Get help fast: '+HELP,
+   '',
+   'Made by the Rotator Cuff Shoulder Model. Exercise videos link to NHS physiotherapy services. This tracker is general guidance, not medical advice.'
+  ].forEach((t,i)=>{ set(H,i+1,1,t,{font:i===0?{bold:true,size:14,color:{argb:INK}}:(t.indexOf('Get help fast')===0?{color:{argb:RED}}:{color:{argb:INK}}),alignment:{wrapText:true,vertical:'top'}}); hRow(H,i+1,t,110); });
+  wb.views=[{activeTab:0}];
+  return wb; }
+const HEAD_FILL='FFDCEDF0';
+async function downloadTracker(cid){
+  const msg=$('#dlMsg'), id=cid||$('#dlCause').value, st=$('#dlStart').value||todayStr(), wk=+$('#dlWeeks').value||6;
+  msg.textContent='Making the spreadsheet…';
+  try{ const wb=await buildTracker(id,st,wk), buf=await wb.xlsx.writeBuffer();
+    const name='shoulder-exercise-tracker-'+st+'.xlsx', blob=new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}), url=URL.createObjectURL(blob);
+    const a=document.createElement('a'); a.href=url; a.download=name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(url),60000);
+    msg.textContent=inFrame?'If nothing was saved, this preview is blocking downloads. Open the app (link below) and download it from there.':'Saved as '+name+'. On an iPhone it opens a preview: tap Share, then Save to Files.';
+  }catch(e){ msg.textContent=e&&e.message==='load'?'The spreadsheet tool did not load. Check your connection and try again.':'Something went wrong making the spreadsheet. Please try again.'; } }
+function refreshDl(){ const sel=$('#dlCause'); if(!sel) return; const cur=sel.value, ranked=PINS.length?overall().list.map(a=>a[0]):[];
+  sel.textContent=''; const add=(par,id,lab)=>{ const o=document.createElement('option'); o.value=id; o.textContent=lab; par.appendChild(o); };
+  if(ranked.length){ const g=document.createElement('optgroup'); g.label='From where it hurts'; ranked.forEach((id,i)=>add(g,id,(i===0?'Best fit: ':'')+COND[id].n)); sel.appendChild(g); }
+  const g2=document.createElement('optgroup'); g2.label=ranked.length?'Other causes':'All causes'; Object.keys(COND).filter(k=>ranked.indexOf(k)<0).forEach(k=>add(g2,k,COND[k].n)); sel.appendChild(g2);
+  sel.value=dlTouched&&cur?cur:(ranked[0]||'imp');
+  $('#dlFrom').textContent=ranked.length?'Picked from where it hurts. You can choose another.':'Tap where it hurts first to get the best match, or choose a cause.'; }
+$('#dlCause').addEventListener('change',()=>{ dlTouched=true; });
+$('#dlStart').value=todayStr();
+$('#dlGo').addEventListener('click',()=>downloadTracker());
+if(inFrame) $('#dlFrame').hidden=false;
+window.shoulder_dl=downloadTracker;
 
 /* ---------- loop ---------- */
 let last=performance.now(),time=0;
